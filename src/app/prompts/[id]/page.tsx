@@ -1,0 +1,237 @@
+"use client"
+
+import { useEffect, useState, useCallback, use } from "react"
+import Link from "next/link"
+import { ArrowLeft, Play, Trash2 } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { ProgressDisplay } from "@/components/prompt/progress-display"
+import { ScoreChart } from "@/components/prompt/score-chart"
+import { IterationTimeline } from "@/components/prompt/iteration-timeline"
+import { PromptVersionHistory } from "@/components/prompt/prompt-version-history"
+import type {
+	PromptProject,
+	ProjectStatus,
+	ProgressPhase,
+} from "@/lib/types"
+
+const statusVariant: Record<
+	ProjectStatus,
+	"default" | "secondary" | "destructive" | "outline"
+> = {
+	draft: "outline",
+	running: "default",
+	paused: "secondary",
+	completed: "default",
+}
+
+export default function ProjectDetailPage({
+	params,
+}: {
+	params: Promise<{ id: string }>
+}) {
+	const { id } = use(params)
+	const router = useRouter()
+	const [project, setProject] = useState<PromptProject | null>(null)
+	const [loading, setLoading] = useState(true)
+	const [phase, setPhase] = useState<ProgressPhase>("idle")
+	const [progress, setProgress] = useState({ completed: 0, total: 0 })
+
+	const fetchProject = useCallback(async () => {
+		try {
+			const res = await fetch(`/api/prompts/${id}`)
+			const data = await res.json()
+			if (data.project) setProject(data.project)
+		} catch (err) {
+			console.error(err)
+		} finally {
+			setLoading(false)
+		}
+	}, [id])
+
+	const fetchStatus = useCallback(async () => {
+		try {
+			const res = await fetch(`/api/prompts/${id}/status`)
+			const data = await res.json()
+			setPhase(data.phase ?? "idle")
+			setProgress(data.progress ?? { completed: 0, total: 0 })
+
+			// Also update project status
+			if (data.status) {
+				setProject((prev) =>
+					prev
+						? {
+							...prev,
+							status: data.status,
+							currentIteration: data.currentIteration ?? prev.currentIteration,
+						}
+						: prev
+				)
+			}
+		} catch (err) {
+			console.error(err)
+		}
+	}, [id])
+
+	// Initial load
+	useEffect(() => {
+		fetchProject()
+	}, [fetchProject])
+
+	// Poll for status when running
+	useEffect(() => {
+		if (project?.status !== "running") return
+
+		const interval = setInterval(() => {
+			fetchStatus()
+			fetchProject() // Also refresh full project data to get new iterations
+		}, 2000)
+
+		return () => clearInterval(interval)
+	}, [project?.status, fetchStatus, fetchProject])
+
+	const handleLaunch = async () => {
+		await fetch(`/api/prompts/${id}/launch`, { method: "POST" })
+		setProject((prev) => (prev ? { ...prev, status: "running" } : prev))
+		setPhase("generating")
+	}
+
+	const handleConfirm = async (editedPrompt?: string) => {
+		await fetch(`/api/prompts/${id}/confirm`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ editedPrompt }),
+		})
+		setProject((prev) => (prev ? { ...prev, status: "running" } : prev))
+		fetchProject()
+	}
+
+	const handleDelete = async () => {
+		if (!confirm("Delete this project? This cannot be undone.")) return
+		await fetch(`/api/prompts/${id}`, { method: "DELETE" })
+		router.push("/")
+	}
+
+	if (loading) {
+		return (
+			<div className="flex items-center justify-center py-16">
+				<div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+			</div>
+		)
+	}
+
+	if (!project) {
+		return (
+			<div className="py-16 text-center">
+				<p className="text-lg text-muted-foreground">Project not found</p>
+				<Link href="/" className="mt-4 inline-block text-primary underline">
+					Back to dashboard
+				</Link>
+			</div>
+		)
+	}
+
+	const scores = project.iterations
+		.filter((it) => it.generations.length > 0)
+		.map((it) => ({
+			iteration: it.iterationNumber,
+			score: it.averageScore,
+		}))
+
+	return (
+		<div className="space-y-6">
+			{/* Header */}
+			<div>
+				<Link
+					href="/"
+					className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
+				>
+					<ArrowLeft className="h-3 w-3" />
+					Back to Dashboard
+				</Link>
+
+				<div className="flex items-start justify-between">
+					<div>
+						<h1 className="text-2xl font-bold tracking-tight">
+							{project.name}
+						</h1>
+						<div className="mt-1 flex items-center gap-2">
+							<Badge variant={statusVariant[project.status]}>
+								{project.status}
+							</Badge>
+							<span className="text-sm text-muted-foreground">
+								Iteration {project.currentIteration}/{project.config.maxIterations}
+							</span>
+						</div>
+					</div>
+					<div className="flex gap-2">
+						{["draft", "paused"].includes(project.status) && (
+							<Button onClick={handleLaunch}>
+								<Play className="mr-2 h-4 w-4" />
+								{project.status === "paused" ? "Resume" : "Launch"}
+							</Button>
+						)}
+						<Button variant="ghost" size="icon" onClick={handleDelete}>
+							<Trash2 className="h-4 w-4" />
+						</Button>
+					</div>
+				</div>
+			</div>
+
+			{/* Source prompt */}
+			<div>
+				<h3 className="text-sm font-medium mb-2">Source Prompt</h3>
+				<pre className="whitespace-pre-wrap rounded-md bg-muted p-3 text-sm font-mono max-h-32 overflow-y-auto">
+					{project.sourcePrompt}
+				</pre>
+			</div>
+
+			{/* Eval questions */}
+			<div>
+				<h3 className="text-sm font-medium mb-2">
+					Evaluation Criteria ({project.evalQuestions.length})
+				</h3>
+				<ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+					{project.evalQuestions.map((q, i) => (
+						<li key={q.id}>
+							<span className="text-foreground">{i + 1}.</span> {q.question}
+						</li>
+					))}
+				</ul>
+			</div>
+
+			<Separator />
+
+			{/* Progress bar when running */}
+			{project.status === "running" && (
+				<ProgressDisplay
+					phase={phase}
+					completed={progress.completed}
+					total={progress.total}
+					currentIteration={project.currentIteration}
+					maxIterations={project.config.maxIterations}
+				/>
+			)}
+
+			{/* Prompt version history */}
+			{project.promptVersions && project.promptVersions.length > 0 && (
+				<PromptVersionHistory versions={project.promptVersions} />
+			)}
+
+			{/* Score chart */}
+			<ScoreChart scores={scores} />
+
+			{/* Iteration history */}
+			<div>
+				<h3 className="text-lg font-semibold mb-3">Iterations</h3>
+				<IterationTimeline
+					iterations={project.iterations}
+					evalQuestions={project.evalQuestions}
+					onConfirm={handleConfirm}
+				/>
+			</div>
+		</div>
+	)
+}
