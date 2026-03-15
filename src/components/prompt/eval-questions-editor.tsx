@@ -2,28 +2,13 @@
 
 import { useState } from "react"
 import { Plus, Trash2, Sparkles, Search } from "lucide-react"
-import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Input } from "@/components/ui/input"
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select"
+import { ModelSelector } from "@/components/prompt/model-selector"
 import { AIEvalPanel } from "@/components/prompt/ai-eval-panel"
-import type { EvalQuestion, TestCase, ModelInfo } from "@/lib/types"
+import type { EvalQuestion, TestCase } from "@/lib/types"
 
 const AI_MODEL_KEY = "eval_ai_model"
-
-async function fetchModels(): Promise<ModelInfo[]> {
-	const res = await fetch("/api/models")
-	if (!res.ok) throw new Error("Failed to fetch models")
-	const data = await res.json()
-	return data.models ?? []
-}
 
 interface EvalQuestionsEditorProps {
 	questions: EvalQuestion[]
@@ -46,26 +31,11 @@ export function EvalQuestionsEditor({
 	const [aiModel, setAiModel] = useState<string>(
 		() => (typeof window !== "undefined" ? (localStorage.getItem(AI_MODEL_KEY) ?? "") : "")
 	)
-	const [modelSearch, setModelSearch] = useState("")
-	const [modelOpen, setModelOpen] = useState(false)
-
-	const { data: models = [] } = useQuery<ModelInfo[]>({
-		queryKey: ["models"],
-		queryFn: fetchModels,
-	})
 
 	const handleAiModelChange = (value: string) => {
 		setAiModel(value)
 		localStorage.setItem(AI_MODEL_KEY, value)
 	}
-
-	const selectedModelName = models.find((m) => m.id === aiModel)?.name
-
-	const filteredModels = models.filter(
-		(m) =>
-			m.name.toLowerCase().includes(modelSearch.toLowerCase()) ||
-			m.id.toLowerCase().includes(modelSearch.toLowerCase())
-	)
 
 	const addQuestion = () => {
 		const trimmed = newQuestion.trim()
@@ -146,34 +116,14 @@ export function EvalQuestionsEditor({
 					{/* AI model selector */}
 					<div className="flex items-center gap-2">
 						<span className="text-xs text-muted-foreground shrink-0">AI model:</span>
-						<Select
-							value={aiModel}
-							onValueChange={handleAiModelChange}
-							open={modelOpen}
-							onOpenChange={(o) => { setModelOpen(o); if (!o) setModelSearch("") }}
-						>
-							<SelectTrigger className="h-7 text-xs flex-1 max-w-xs">
-								<SelectValue placeholder="Pick a model...">
-									{selectedModelName ?? (aiModel || undefined)}
-								</SelectValue>
-							</SelectTrigger>
-							<SelectContent>
-								<div className="p-1.5">
-									<Input
-										placeholder="Search models..."
-										value={modelSearch}
-										onChange={(e) => setModelSearch(e.target.value)}
-										onKeyDown={(e) => e.stopPropagation()}
-										className="h-7 text-xs"
-									/>
-								</div>
-								{filteredModels.map((m) => (
-									<SelectItem key={m.id} value={m.id} className="text-xs">
-										{m.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+						<div className="flex-1 max-w-xs">
+							<ModelSelector
+								value={aiModel}
+								onChange={handleAiModelChange}
+								placeholder="Pick a model..."
+								compact
+							/>
+						</div>
 					</div>
 
 					{/* Custom instructions */}
