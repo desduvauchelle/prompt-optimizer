@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, use } from "react"
 import Link from "next/link"
-import { ArrowLeft, Pencil, Play, RotateCcw, Trash2 } from "lucide-react"
+import { ArrowLeft, Pencil, Play, RotateCcw, Trash2, ChevronDown, ChevronRight } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -34,6 +34,45 @@ const statusVariant: Record<
 	running: "default",
 	paused: "secondary",
 	completed: "default",
+}
+
+function CollapsibleSection({
+	title,
+	subtitle,
+	defaultOpen,
+	children,
+}: {
+	title: string
+	subtitle?: string
+	defaultOpen: boolean
+	children: React.ReactNode
+}) {
+	const [open, setOpen] = useState(defaultOpen)
+	return (
+		<div className="rounded-lg border border-border">
+			<button
+				className="flex w-full items-center justify-between p-3 text-left hover:bg-accent/50 transition-colors"
+				onClick={() => setOpen(!open)}
+			>
+				<div className="flex items-center gap-2">
+					{open ? (
+						<ChevronDown className="h-4 w-4" />
+					) : (
+						<ChevronRight className="h-4 w-4" />
+					)}
+					<span className="text-sm font-semibold">{title}</span>
+					{subtitle && !open && (
+						<span className="text-xs text-muted-foreground">{subtitle}</span>
+					)}
+				</div>
+			</button>
+			{open && (
+				<div className="border-t border-border p-4 space-y-3">
+					{children}
+				</div>
+			)}
+		</div>
+	)
 }
 
 export default function ProjectDetailPage({
@@ -172,6 +211,8 @@ export default function ProjectDetailPage({
 			score: it.averageScore,
 		}))
 
+	const hasResults = project.iterations.length > 0
+
 	return (
 		<div className="space-y-6">
 			{/* Header */}
@@ -196,25 +237,32 @@ export default function ProjectDetailPage({
 							<span className="text-sm text-muted-foreground">
 								Iteration {project.currentIteration}/{project.config.maxIterations}
 							</span>
+							{project.totalCost > 0 && (
+								<span className="text-xs text-muted-foreground">
+									• ${project.totalCost.toFixed(4)} spent
+								</span>
+							)}
 						</div>
 					</div>
-					<div className="flex gap-2">					{project.status !== "running" && (
-						<Button
-							variant="outline"
-							size="sm"
-							asChild
-						>
-							<Link href={`/prompts/${id}/edit`}>
-								<Pencil className="mr-2 h-3.5 w-3.5" />
-								Edit Setup
-							</Link>
-						</Button>
-					)}						{["draft", "paused"].includes(project.status) && (
-						<Button onClick={handleLaunch}>
-							<Play className="mr-2 h-4 w-4" />
-							{project.status === "paused" ? "Resume" : "Launch"}
-						</Button>
-					)}
+					<div className="flex gap-2">
+						{project.status !== "running" && (
+							<Button
+								variant="outline"
+								size="sm"
+								asChild
+							>
+								<Link href={`/prompts/${id}/edit`}>
+									<Pencil className="mr-2 h-3.5 w-3.5" />
+									Edit Setup
+								</Link>
+							</Button>
+						)}
+						{["draft", "paused"].includes(project.status) && (
+							<Button onClick={handleLaunch}>
+								<Play className="mr-2 h-4 w-4" />
+								{project.status === "paused" ? "Resume" : "Launch"}
+							</Button>
+						)}
 						<Button variant="ghost" size="icon" onClick={handleDelete}>
 							<Trash2 className="h-4 w-4" />
 						</Button>
@@ -289,66 +337,73 @@ export default function ProjectDetailPage({
 				</CardContent>
 			</Card>
 
-			{/* Objective */}
-			{project.objective && (
-				<div>
-					<h3 className="text-sm font-medium mb-2">Objective</h3>
-					<p className="text-sm text-muted-foreground">{project.objective}</p>
-				</div>
-			)}
-
-			{/* System prompt */}
-			<div>
-				<h3 className="text-sm font-medium mb-2">System Prompt</h3>
-				<pre className="whitespace-pre-wrap rounded-md bg-muted p-3 text-sm font-mono max-h-32 overflow-y-auto">
-					{project.systemPrompt}
-				</pre>
-			</div>
-
-			{/* Test Cases */}
-			{project.testCases && project.testCases.length > 0 && (
-				<div>
-					<h3 className="text-sm font-medium mb-2">
-						Test Cases ({project.testCases.length})
-					</h3>
-					<div className="space-y-2">
-						{project.testCases.map((tc, i) => (
-							<div
-								key={tc.id}
-								className="rounded-md bg-muted p-3 text-sm"
-							>
-								<span className="font-medium">
-									{tc.name || `Test Case ${i + 1}`}
-								</span>
-								{tc.content && (
-									<pre className="mt-1 whitespace-pre-wrap font-mono text-muted-foreground max-h-20 overflow-y-auto">
-										{tc.content}
-									</pre>
-								)}
-								{tc.files && tc.files.length > 0 && (
-									<p className="mt-1 text-xs text-muted-foreground">
-										{tc.files.length} file(s) attached
-									</p>
-								)}
-							</div>
-						))}
+			{/* Setup details — collapsible when project has results */}
+			<CollapsibleSection
+				title="Setup Details"
+				subtitle={`${project.testCases?.length ?? 0} test cases · ${project.evalQuestions.length} eval criteria`}
+				defaultOpen={!hasResults}
+			>
+				{/* Objective */}
+				{project.objective && (
+					<div>
+						<h4 className="text-sm font-medium mb-1">Objective</h4>
+						<p className="text-sm text-muted-foreground">{project.objective}</p>
 					</div>
-				</div>
-			)}
+				)}
 
-			{/* Eval questions */}
-			<div>
-				<h3 className="text-sm font-medium mb-2">
-					Evaluation Criteria ({project.evalQuestions.length})
-				</h3>
-				<ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-					{project.evalQuestions.map((q, i) => (
-						<li key={q.id}>
-							<span className="text-foreground">{i + 1}.</span> {q.question}
-						</li>
-					))}
-				</ul>
-			</div>
+				{/* System prompt */}
+				<div>
+					<h4 className="text-sm font-medium mb-1">System Prompt</h4>
+					<pre className="whitespace-pre-wrap rounded-md bg-muted p-3 text-sm font-mono max-h-32 overflow-y-auto">
+						{project.systemPrompt}
+					</pre>
+				</div>
+
+				{/* Test Cases */}
+				{project.testCases && project.testCases.length > 0 && (
+					<div>
+						<h4 className="text-sm font-medium mb-1">
+							Test Cases ({project.testCases.length})
+						</h4>
+						<div className="space-y-2">
+							{project.testCases.map((tc, i) => (
+								<div
+									key={tc.id}
+									className="rounded-md bg-muted p-2 text-sm"
+								>
+									<span className="font-medium">
+										{tc.name || `Test Case ${i + 1}`}
+									</span>
+									{tc.content && (
+										<pre className="mt-1 whitespace-pre-wrap font-mono text-muted-foreground text-xs max-h-16 overflow-y-auto">
+											{tc.content}
+										</pre>
+									)}
+									{tc.files && tc.files.length > 0 && (
+										<p className="mt-1 text-xs text-muted-foreground">
+											{tc.files.length} file(s) attached
+										</p>
+									)}
+								</div>
+							))}
+						</div>
+					</div>
+				)}
+
+				{/* Eval questions */}
+				<div>
+					<h4 className="text-sm font-medium mb-1">
+						Evaluation Criteria ({project.evalQuestions.length})
+					</h4>
+					<ul className="list-disc list-inside text-sm text-muted-foreground space-y-0.5">
+						{project.evalQuestions.map((q, i) => (
+							<li key={q.id}>
+								<span className="text-foreground">{i + 1}.</span> {q.question}
+							</li>
+						))}
+					</ul>
+				</div>
+			</CollapsibleSection>
 
 			<Separator />
 

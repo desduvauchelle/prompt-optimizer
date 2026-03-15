@@ -5,6 +5,7 @@ import { randomId } from "@/lib/engine/utils"
 interface GeneratedOutput {
 	output: string
 	testCaseId: string | null
+	cost: number
 }
 
 export async function evaluateOutputs(
@@ -24,6 +25,7 @@ export async function evaluateOutputs(
 				evalScores: Object.fromEntries(evalQuestions.map((q) => [q.id, false])),
 				overallScore: 0,
 				testCaseId: item.testCaseId,
+				cost: item.cost,
 			})
 			continue
 		}
@@ -54,7 +56,7 @@ Example: {"1": true, "2": false, "3": true}`
 		try {
 			const response = await callModel(model, evalPrompt)
 
-			const jsonMatch = response.match(/\{[^}]+\}/)
+			const jsonMatch = response.text.match(/\{[^}]+\}/)
 			const parsed: Record<string, boolean> = jsonMatch
 				? JSON.parse(jsonMatch[0])
 				: {}
@@ -77,6 +79,7 @@ Example: {"1": true, "2": false, "3": true}`
 				evalScores,
 				overallScore,
 				testCaseId: item.testCaseId,
+				cost: item.cost + response.cost,
 			})
 		} catch {
 			results.push({
@@ -87,6 +90,7 @@ Example: {"1": true, "2": false, "3": true}`
 				),
 				overallScore: 0,
 				testCaseId: item.testCaseId,
+				cost: item.cost,
 			})
 		}
 	}

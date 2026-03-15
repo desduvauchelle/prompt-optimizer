@@ -18,6 +18,7 @@ const GenerationResultSchema = new Schema(
 		evalScores: { type: Map, of: Boolean, default: {} },
 		overallScore: { type: Number, default: 0 },
 		testCaseId: { type: String, default: null },
+		cost: { type: Number, default: 0 },
 	},
 	{ _id: false }
 )
@@ -43,6 +44,7 @@ const IterationResultSchema = new Schema(
 			],
 			default: "generating",
 		},
+		cost: { type: Number, default: 0 },
 	},
 	{ _id: false }
 )
@@ -68,6 +70,7 @@ const ProjectConfigSchema = new Schema(
 		evalModel: { type: String, default: "" },
 		rewriteModel: { type: String, default: "" },
 		autoConfirm: { type: Boolean, default: false },
+		successThreshold: { type: Number, default: 0 },
 	},
 	{ _id: false }
 )
@@ -110,6 +113,7 @@ const PromptProjectSchema = new Schema(
 			default: "draft",
 		},
 		currentIteration: { type: Number, default: 0 },
+		totalCost: { type: Number, default: 0 },
 	},
 	{ timestamps: true }
 )

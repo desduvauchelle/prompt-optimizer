@@ -13,6 +13,7 @@ interface AIEvalPanelProps {
 	testCases: TestCase[]
 	evalQuestions: EvalQuestion[]
 	evalModel: string
+	customInstructions?: string
 	onAddQuestion: (question: EvalQuestion) => void
 	onUpdateQuestion: (id: string, question: string) => void
 	onRemoveQuestion: (id: string) => void
@@ -26,6 +27,7 @@ export function AIEvalPanel({
 	testCases,
 	evalQuestions,
 	evalModel,
+	customInstructions = "",
 	onAddQuestion,
 	onUpdateQuestion,
 	onRemoveQuestion,
@@ -50,6 +52,7 @@ export function AIEvalPanel({
 					objective,
 					testCases: testCases.map((tc) => ({ name: tc.name, content: tc.content })),
 					model: evalModel,
+					customInstructions,
 				}),
 			})
 			const data = await res.json()
@@ -201,20 +204,20 @@ export function AIEvalPanel({
 							<div
 								key={i}
 								className={`rounded-md bg-background p-3 space-y-1 border-l-2 ${s.type === "add"
-										? "border-l-green-500"
-										: s.type === "update"
-											? "border-l-yellow-500"
-											: "border-l-red-500"
+									? "border-l-green-500"
+									: s.type === "update"
+										? "border-l-yellow-500"
+										: "border-l-red-500"
 									}`}
 							>
 								<div className="flex items-center gap-2">
 									<Badge
 										variant="outline"
 										className={`text-xs ${s.type === "add"
-												? "text-green-500 border-green-500/30"
-												: s.type === "update"
-													? "text-yellow-500 border-yellow-500/30"
-													: "text-red-500 border-red-500/30"
+											? "text-green-500 border-green-500/30"
+											: s.type === "update"
+												? "text-yellow-500 border-yellow-500/30"
+												: "text-red-500 border-red-500/30"
 											}`}
 									>
 										{s.type}

@@ -40,6 +40,7 @@ export function CreateForm() {
 	const [evalModel, setEvalModel] = useState("")
 	const [rewriteModel, setRewriteModel] = useState("")
 	const [autoConfirm, setAutoConfirm] = useState(false)
+	const [successThreshold, setSuccessThreshold] = useState(0)
 
 	const canSaveDraft = systemPrompt.trim().length > 0
 	const canLaunch =
@@ -74,6 +75,7 @@ export function CreateForm() {
 						evalModel,
 						rewriteModel,
 						autoConfirm,
+						successThreshold,
 					},
 				}),
 			})
@@ -217,6 +219,24 @@ export function CreateForm() {
 									onCheckedChange={setAutoConfirm}
 								/>
 							</div>
+							<div className="space-y-1.5">
+								<Label htmlFor="threshold">Success Threshold (%)</Label>
+								<Input
+									id="threshold"
+									type="number"
+									min={0}
+									max={100}
+									value={successThreshold}
+									onChange={(e) =>
+										setSuccessThreshold(
+											Math.max(0, Math.min(100, parseInt(e.target.value) || 0))
+										)
+									}
+								/>
+								<p className="text-xs text-muted-foreground">
+									Stop early if score reaches this. 0 = disabled.
+								</p>
+							</div>
 						</CardContent>
 					</Card>
 				</div>
@@ -280,7 +300,6 @@ export function CreateForm() {
 								systemPrompt={systemPrompt}
 								objective={objective}
 								testCases={testCases}
-								evalModel={evalModel}
 							/>
 						</CardContent>
 					</Card>

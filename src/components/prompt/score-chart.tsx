@@ -12,7 +12,7 @@ export function ScoreChart({ scores }: ScoreChartProps) {
 	return (
 		<div className="rounded-lg border border-border bg-card p-4">
 			<h3 className="text-sm font-semibold mb-4">Score Progression</h3>
-			<div className="flex items-end gap-2 h-32">
+			<div className="flex gap-2">
 				{scores.map((s, i) => {
 					const heightPct = (s.score / maxScore) * 100
 					const prevScore = i > 0 ? scores[i - 1].score : null
@@ -30,25 +30,27 @@ export function ScoreChart({ scores }: ScoreChartProps) {
 							{delta !== null && (
 								<span
 									className={`text-[10px] font-mono ${delta > 0
-											? "text-green-500"
-											: delta < 0
-												? "text-red-500"
-												: "text-muted-foreground"
+										? "text-green-500"
+										: delta < 0
+											? "text-red-500"
+											: "text-muted-foreground"
 										}`}
 								>
 									{delta > 0 ? "+" : ""}
 									{(delta * 100).toFixed(0)}
 								</span>
 							)}
-							<div
-								className={`w-full rounded-t transition-all ${s.score >= 0.8
+							<div className="w-full h-24 flex items-end">
+								<div
+									className={`w-full rounded-t transition-all ${s.score >= 0.8
 										? "bg-green-500"
 										: s.score >= 0.5
 											? "bg-yellow-500"
 											: "bg-red-500"
-									}`}
-								style={{ height: `${Math.max(heightPct, 4)}%` }}
-							/>
+										}`}
+									style={{ height: `${Math.max(heightPct, 4)}%` }}
+								/>
+							</div>
 							<span className="text-xs text-muted-foreground">
 								#{s.iteration}
 							</span>

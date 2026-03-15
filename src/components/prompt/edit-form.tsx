@@ -59,6 +59,9 @@ export function EditForm({ projectId, project }: EditFormProps) {
 	const [autoConfirm, setAutoConfirm] = useState(
 		project.config.autoConfirm ?? false
 	)
+	const [successThreshold, setSuccessThreshold] = useState(
+		project.config.successThreshold ?? 0
+	)
 
 	const canSave = systemPrompt.trim().length > 0
 	const canLaunch =
@@ -92,6 +95,7 @@ export function EditForm({ projectId, project }: EditFormProps) {
 						evalModel,
 						rewriteModel,
 						autoConfirm,
+						successThreshold,
 					},
 				}),
 			})
@@ -238,6 +242,24 @@ export function EditForm({ projectId, project }: EditFormProps) {
 									onCheckedChange={setAutoConfirm}
 								/>
 							</div>
+							<div className="space-y-1.5">
+								<Label htmlFor="threshold">Success Threshold (%)</Label>
+								<Input
+									id="threshold"
+									type="number"
+									min={0}
+									max={100}
+									value={successThreshold}
+									onChange={(e) =>
+										setSuccessThreshold(
+											Math.max(0, Math.min(100, parseInt(e.target.value) || 0))
+										)
+									}
+								/>
+								<p className="text-xs text-muted-foreground">
+									Stop early if score reaches this. 0 = disabled.
+								</p>
+							</div>
 						</CardContent>
 					</Card>
 				</div>
@@ -298,7 +320,6 @@ export function EditForm({ projectId, project }: EditFormProps) {
 								systemPrompt={systemPrompt}
 								objective={objective}
 								testCases={testCases}
-								evalModel={evalModel}
 							/>
 						</CardContent>
 					</Card>

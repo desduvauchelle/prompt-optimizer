@@ -2,10 +2,28 @@
 
 import { useState } from "react"
 import { Plus, Trash2, Sparkles, Search } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select"
 import { AIEvalPanel } from "@/components/prompt/ai-eval-panel"
-import type { EvalQuestion, TestCase } from "@/lib/types"
+import type { EvalQuestion, TestCase, ModelInfo } from "@/lib/types"
+
+const AI_MODEL_KEY = "eval_ai_model"
+
+async function fetchModels(): Promise<ModelInfo[]> {
+	const res = await fetch("/api/models")
+	if (!res.ok) throw new Error("Failed to fetch models")
+	const data = await res.json()
+	return data.models ?? []
+}
 
 interface EvalQuestionsEditorProps {
 	questions: EvalQuestion[]
@@ -13,7 +31,6 @@ interface EvalQuestionsEditorProps {
 	systemPrompt?: string
 	objective?: string
 	testCases?: TestCase[]
-	evalModel?: string
 }
 
 export function EvalQuestionsEditor({
@@ -22,10 +39,33 @@ export function EvalQuestionsEditor({
 	systemPrompt = "",
 	objective = "",
 	testCases = [],
-	evalModel = "",
 }: EvalQuestionsEditorProps) {
 	const [newQuestion, setNewQuestion] = useState("")
 	const [aiMode, setAiMode] = useState<"generate" | "review" | null>(null)
+	const [customInstructions, setCustomInstructions] = useState("")
+	const [aiModel, setAiModel] = useState<string>(
+		() => (typeof window !== "undefined" ? (localStorage.getItem(AI_MODEL_KEY) ?? "") : "")
+	)
+	const [modelSearch, setModelSearch] = useState("")
+	const [modelOpen, setModelOpen] = useState(false)
+
+	const { data: models = [] } = useQuery<ModelInfo[]>({
+		queryKey: ["models"],
+		queryFn: fetchModels,
+	})
+
+	const handleAiModelChange = (value: string) => {
+		setAiModel(value)
+		localStorage.setItem(AI_MODEL_KEY, value)
+	}
+
+	const selectedModelName = models.find((m) => m.id === aiModel)?.name
+
+	const filteredModels = models.filter(
+		(m) =>
+			m.name.toLowerCase().includes(modelSearch.toLowerCase()) ||
+			m.id.toLowerCase().includes(modelSearch.toLowerCase())
+	)
 
 	const addQuestion = () => {
 		const trimmed = newQuestion.trim()
@@ -46,40 +86,44 @@ export function EvalQuestionsEditor({
 		onChange(questions.map((q) => (q.id === id ? { ...q, question } : q)))
 	}
 
-	const canUseAI = systemPrompt.trim() && evalModel
+	const canUseAI = systemPrompt.trim()
 
 	return (
 		<div className="space-y-3">
 			{questions.map((q, i) => (
-				<div key={q.id} className="flex items-center gap-2">
-					<span className="text-sm text-muted-foreground w-6 shrink-0">
+				<div key={q.id} className="flex items-start gap-2">
+					<span className="text-sm text-muted-foreground w-6 shrink-0 pt-2">
 						{i + 1}.
 					</span>
-					<Input
+					<Textarea
 						value={q.question}
 						onChange={(e) => updateQuestion(q.id, e.target.value)}
 						placeholder="Does the output include...?"
+						rows={2}
+						className="text-sm min-h-[2.5rem]"
 					/>
 					<Button
 						type="button"
 						variant="ghost"
 						size="icon"
 						onClick={() => removeQuestion(q.id)}
-						className="shrink-0"
+						className="shrink-0 mt-1"
 					>
 						<Trash2 className="h-4 w-4 text-muted-foreground" />
 					</Button>
 				</div>
 			))}
 
-			<div className="flex items-center gap-2">
+			<div className="flex items-start gap-2">
 				<span className="w-6 shrink-0" />
-				<Input
+				<Textarea
 					value={newQuestion}
 					onChange={(e) => setNewQuestion(e.target.value)}
 					placeholder="Add a new eval question..."
+					rows={2}
+					className="text-sm min-h-[2.5rem]"
 					onKeyDown={(e) => {
-						if (e.key === "Enter") {
+						if (e.key === "Enter" && !e.shiftKey) {
 							e.preventDefault()
 							addQuestion()
 						}
@@ -90,37 +134,83 @@ export function EvalQuestionsEditor({
 					variant="outline"
 					size="icon"
 					onClick={addQuestion}
-					className="shrink-0"
+					className="shrink-0 mt-1"
 				>
 					<Plus className="h-4 w-4" />
 				</Button>
 			</div>
 
-			{/* AI buttons */}
+			{/* AI section */}
 			{canUseAI && !aiMode && (
-				<div className="flex gap-2 pt-1">
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						className="text-xs"
-						onClick={() => setAiMode("generate")}
-					>
-						<Sparkles className="mr-1 h-3 w-3" />
-						Generate with AI
-					</Button>
-					{questions.length > 0 && (
+				<div className="space-y-2 border-t border-border pt-3">
+					{/* AI model selector */}
+					<div className="flex items-center gap-2">
+						<span className="text-xs text-muted-foreground shrink-0">AI model:</span>
+						<Select
+							value={aiModel}
+							onValueChange={handleAiModelChange}
+							open={modelOpen}
+							onOpenChange={(o) => { setModelOpen(o); if (!o) setModelSearch("") }}
+						>
+							<SelectTrigger className="h-7 text-xs flex-1 max-w-xs">
+								<SelectValue placeholder="Pick a model...">
+									{selectedModelName ?? (aiModel || undefined)}
+								</SelectValue>
+							</SelectTrigger>
+							<SelectContent>
+								<div className="p-1.5">
+									<Input
+										placeholder="Search models..."
+										value={modelSearch}
+										onChange={(e) => setModelSearch(e.target.value)}
+										onKeyDown={(e) => e.stopPropagation()}
+										className="h-7 text-xs"
+									/>
+								</div>
+								{filteredModels.map((m) => (
+									<SelectItem key={m.id} value={m.id} className="text-xs">
+										{m.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+
+					{/* Custom instructions */}
+					<Textarea
+						value={customInstructions}
+						onChange={(e) => setCustomInstructions(e.target.value)}
+						placeholder='Optional: tell the AI what to check for (e.g. "Check for formatting, code examples, error handling")'
+						rows={2}
+						className="text-sm text-muted-foreground"
+					/>
+
+					<div className="flex gap-2">
 						<Button
 							type="button"
 							variant="outline"
 							size="sm"
 							className="text-xs"
-							onClick={() => setAiMode("review")}
+							disabled={!aiModel}
+							onClick={() => setAiMode("generate")}
 						>
-							<Search className="mr-1 h-3 w-3" />
-							Review with AI
+							<Sparkles className="mr-1 h-3 w-3" />
+							Generate with AI
 						</Button>
-					)}
+						{questions.length > 0 && (
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="text-xs"
+								disabled={!aiModel}
+								onClick={() => setAiMode("review")}
+							>
+								<Search className="mr-1 h-3 w-3" />
+								Review with AI
+							</Button>
+						)}
+					</div>
 				</div>
 			)}
 
@@ -132,7 +222,8 @@ export function EvalQuestionsEditor({
 					objective={objective}
 					testCases={testCases}
 					evalQuestions={questions}
-					evalModel={evalModel}
+					evalModel={aiModel}
+					customInstructions={customInstructions}
 					onAddQuestion={(q) => onChange([...questions, q])}
 					onUpdateQuestion={(id, question) => updateQuestion(id, question)}
 					onRemoveQuestion={(id) => removeQuestion(id)}

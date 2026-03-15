@@ -9,12 +9,13 @@ const GenerateEvalsSchema = z.object({
 		.array(z.object({ name: z.string(), content: z.string() }))
 		.default([]),
 	model: z.string().min(1),
+	customInstructions: z.string().default(""),
 })
 
 export async function POST(req: NextRequest) {
 	try {
 		const body = await req.json()
-		const { systemPrompt, objective, testCases, model } =
+		const { systemPrompt, objective, testCases, model, customInstructions } =
 			GenerateEvalsSchema.parse(body)
 
 		const testCaseSection =
@@ -26,20 +27,24 @@ export async function POST(req: NextRequest) {
 			? `\nOBJECTIVE: ${objective}\n`
 			: ""
 
+		const customSection = customInstructions
+			? `\nADDITIONAL INSTRUCTIONS FROM USER:\n${customInstructions}\n`
+			: ""
+
 		const prompt = `You are an expert at evaluating LLM outputs. Given a system prompt${objective ? ", its objective," : ""} ${testCases.length > 0 ? "and sample test cases" : ""}, generate yes/no evaluation questions that can be used to assess the quality of outputs.
 ${objectiveSection}
 SYSTEM PROMPT:
 """
 ${systemPrompt}
 """
-${testCaseSection}
+${testCaseSection}${customSection}
 Generate 5-10 yes/no evaluation questions. Each question should test a specific quality aspect of the expected output. Questions should be answerable with true/false by an LLM evaluator.
 
 Respond ONLY with a JSON array of objects, each with an "id" (unique string) and "question" (the yes/no question).
 Example: [{"id": "q1", "question": "Does the output include a greeting?"}]`
 
 		const response = await callModel(model, prompt)
-		const jsonMatch = response.match(/\[[\s\S]*\]/)
+		const jsonMatch = response.text.match(/\[[\s\S]*\]/)
 		if (!jsonMatch) {
 			return NextResponse.json(
 				{ error: "Failed to parse AI response" },

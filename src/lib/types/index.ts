@@ -24,6 +24,7 @@ export interface GenerationResult {
 	evalScores: Record<string, boolean>
 	overallScore: number
 	testCaseId: string | null
+	cost: number
 }
 
 export type IterationStatus =
@@ -43,6 +44,7 @@ export interface IterationResult {
 	recommendations: string[]
 	rewrittenPrompt: string | null
 	status: IterationStatus
+	cost: number
 }
 
 export type ProjectStatus = "draft" | "running" | "paused" | "completed"
@@ -64,6 +66,7 @@ export interface ProjectConfig {
 	evalModel: string
 	rewriteModel: string
 	autoConfirm: boolean
+	successThreshold: number
 }
 
 export interface PromptProject {
@@ -79,6 +82,7 @@ export interface PromptProject {
 	promptVersions: PromptVersion[]
 	status: ProjectStatus
 	currentIteration: number
+	totalCost: number
 	createdAt: Date
 	updatedAt: Date
 }

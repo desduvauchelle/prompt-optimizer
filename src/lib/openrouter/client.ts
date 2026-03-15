@@ -16,14 +16,26 @@ export function getOpenRouterClient(): OpenRouter {
 	return client
 }
 
+export interface ModelCallResult {
+	text: string
+	cost: number
+}
+
 export async function callModel(
 	model: string,
 	input: string
-): Promise<string> {
+): Promise<ModelCallResult> {
 	const openrouter = getOpenRouterClient()
 	const result = openrouter.callModel({ model, input })
-	const text = await result.getText()
-	return text
+	const response = await result.getResponse()
+	const text = response.output
+		?.filter((o) => o.type === "message")
+		.flatMap((o) => "content" in o ? o.content : [])
+		.filter((c) => c.type === "output_text")
+		.map((c) => "text" in c ? c.text : "")
+		.join("") ?? await result.getText()
+	const cost = response.usage?.cost ?? 0
+	return { text, cost }
 }
 
 type MessageContent = string | Array<{ type: string;[key: string]: unknown }>
@@ -60,7 +72,7 @@ export async function callModelWithMessages(
 	systemFiles: FileAttachment[],
 	userContent: string,
 	userFiles: FileAttachment[]
-): Promise<string> {
+): Promise<ModelCallResult> {
 	const openrouter = getOpenRouterClient()
 
 	const messages: Message[] = [
@@ -76,6 +88,13 @@ export async function callModelWithMessages(
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const result = openrouter.callModel({ model, input: messages as any })
-	const text = await result.getText()
-	return text
+	const response = await result.getResponse()
+	const text = response.output
+		?.filter((o) => o.type === "message")
+		.flatMap((o) => "content" in o ? o.content : [])
+		.filter((c) => c.type === "output_text")
+		.map((c) => "text" in c ? c.text : "")
+		.join("") ?? await result.getText()
+	const cost = response.usage?.cost ?? 0
+	return { text, cost }
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, ChevronRight } from "lucide-react"
+import { ChevronDown, ChevronRight, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { GenerationResultsTable } from "@/components/prompt/generation-results-table"
 import { RecommendationPanel } from "@/components/prompt/recommendation-panel"
@@ -29,6 +29,11 @@ export function IterationDetail({
 		iteration.status === "rewriting"
 	)
 
+	const isActive =
+		iteration.status === "generating" ||
+		iteration.status === "evaluating" ||
+		iteration.status === "rewriting"
+
 	const delta =
 		previousScore !== null
 			? iteration.averageScore - previousScore
@@ -50,30 +55,42 @@ export function IterationDetail({
 					<span className="font-semibold">
 						Iteration {iteration.iterationNumber}
 					</span>
-					<Badge variant="outline" className="text-xs">
-						{iteration.status}
-					</Badge>
+					{isActive ? (
+						<Badge variant="outline" className="text-xs gap-1 text-primary border-primary/30">
+							<Loader2 className="h-3 w-3 animate-spin" />
+							{iteration.status}
+						</Badge>
+					) : (
+						<Badge variant="outline" className="text-xs">
+							{iteration.status}
+						</Badge>
+					)}
 				</div>
 				<div className="flex items-center gap-3">
 					{delta !== null && (
 						<span
 							className={`text-xs font-mono ${delta > 0
-									? "text-green-500"
-									: delta < 0
-										? "text-red-500"
-										: "text-muted-foreground"
+								? "text-green-500"
+								: delta < 0
+									? "text-red-500"
+									: "text-muted-foreground"
 								}`}
 						>
 							{delta > 0 ? "+" : ""}
 							{(delta * 100).toFixed(0)}%
 						</span>
 					)}
+					{iteration.cost > 0 && (
+						<span className="text-xs text-muted-foreground font-mono">
+							${iteration.cost.toFixed(4)}
+						</span>
+					)}
 					<span
 						className={`font-mono font-semibold text-sm ${iteration.averageScore >= 0.8
-								? "text-green-500"
-								: iteration.averageScore >= 0.5
-									? "text-yellow-500"
-									: "text-red-500"
+							? "text-green-500"
+							: iteration.averageScore >= 0.5
+								? "text-yellow-500"
+								: "text-red-500"
 							}`}
 					>
 						{(iteration.averageScore * 100).toFixed(0)}%

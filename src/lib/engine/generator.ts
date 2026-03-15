@@ -4,6 +4,7 @@ import type { FileAttachment, TestCase } from "@/lib/types"
 interface GeneratedOutput {
 	output: string
 	testCaseId: string | null
+	cost: number
 }
 
 export async function generateOutputs(
@@ -42,9 +43,9 @@ export async function generateOutputs(
 	let completed = 0
 
 	const runTask = async (task: Task): Promise<GeneratedOutput> => {
-		let text: string
+		let result
 		if (task.userContent || task.userFiles.length > 0 || systemFiles.length > 0) {
-			text = await callModelWithMessages(
+			result = await callModelWithMessages(
 				model,
 				systemPrompt,
 				systemFiles,
@@ -52,11 +53,11 @@ export async function generateOutputs(
 				task.userFiles
 			)
 		} else {
-			text = await callModel(model, systemPrompt)
+			result = await callModel(model, systemPrompt)
 		}
 		completed++
 		onProgress?.(completed, total)
-		return { output: text, testCaseId: task.testCaseId }
+		return { output: result.text, testCaseId: task.testCaseId, cost: result.cost }
 	}
 
 	// Process in chunks based on concurrency
@@ -78,7 +79,7 @@ export async function generateOutputs(
 					const retryResult = await runTask(task)
 					results.push(retryResult)
 				} catch {
-					results.push({ output: "[GENERATION_FAILED]", testCaseId: task.testCaseId })
+					results.push({ output: "[GENERATION_FAILED]", testCaseId: task.testCaseId, cost: 0 })
 					completed++
 					onProgress?.(completed, total)
 				}

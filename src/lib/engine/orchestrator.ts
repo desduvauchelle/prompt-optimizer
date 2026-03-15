@@ -54,6 +54,7 @@ export async function runOptimization(projectId: string): Promise<void> {
 			recommendations: [],
 			rewrittenPrompt: null,
 			status: "generating",
+			cost: 0,
 		}
 
 		// Push iteration stub
@@ -104,12 +105,30 @@ export async function runOptimization(projectId: string): Promise<void> {
 				evalResults.length
 				: 0
 
+		// Calculate iteration cost so far (generation + eval)
+		const genEvalCost = evalResults.reduce((sum, r) => sum + r.cost, 0)
+
 		// Update iteration with eval results
 		await PromptProjectModel.findByIdAndUpdate(projectId, {
 			[`iterations.${i}.generations`]: evalResults,
 			[`iterations.${i}.averageScore`]: avgScore,
 			[`iterations.${i}.status`]: "rewriting",
 		})
+
+		// Check success threshold — if score meets it, stop early
+		const threshold = config.successThreshold ?? 0
+		if (threshold > 0 && avgScore >= threshold / 100) {
+			const iterationCost = genEvalCost
+			await PromptProjectModel.findByIdAndUpdate(projectId, {
+				[`iterations.${i}.status`]: "completed",
+				[`iterations.${i}.cost`]: iterationCost,
+				status: "completed",
+				currentIteration: i + 1,
+				$inc: { totalCost: iterationCost },
+			})
+			progressMap.set(projectId, { phase: "idle", completed: 0, total: 0 })
+			return
+		}
 
 		// --- REWRITE PHASE ---
 		progressMap.set(projectId, { phase: "rewriting", completed: 0, total: 1 })
@@ -130,6 +149,9 @@ export async function runOptimization(projectId: string): Promise<void> {
 			[`iterations.${i}.rewrittenPrompt`]: rewriteResult.rewrittenPrompt,
 		})
 
+		// Calculate total iteration cost
+		const iterationCost = genEvalCost + rewriteResult.cost
+
 		// Check if this is the last iteration
 		const isLastIteration = i === config.maxIterations - 1
 
@@ -147,24 +169,30 @@ export async function runOptimization(projectId: string): Promise<void> {
 			// Mark iteration and project as completed, push final version
 			await PromptProjectModel.findByIdAndUpdate(projectId, {
 				[`iterations.${i}.status`]: "completed",
+				[`iterations.${i}.cost`]: iterationCost,
 				status: "completed",
 				currentIteration: i + 1,
 				$push: { promptVersions: newVersion },
+				$inc: { totalCost: iterationCost },
 			})
 		} else if (config.autoConfirm) {
 			// Auto-confirm: apply rewritten prompt, push version, and continue
 			await PromptProjectModel.findByIdAndUpdate(projectId, {
 				[`iterations.${i}.status`]: "confirmed",
+				[`iterations.${i}.cost`]: iterationCost,
 				currentIteration: i + 1,
 				$push: { promptVersions: newVersion },
+				$inc: { totalCost: iterationCost },
 			})
 			currentPrompt = rewriteResult.rewrittenPrompt
 		} else {
 			// Manual review: pause and wait for confirmation
 			await PromptProjectModel.findByIdAndUpdate(projectId, {
 				[`iterations.${i}.status`]: "awaiting_confirmation",
+				[`iterations.${i}.cost`]: iterationCost,
 				status: "paused",
 				currentIteration: i + 1,
+				$inc: { totalCost: iterationCost },
 			})
 			progressMap.set(projectId, { phase: "idle", completed: 0, total: 0 })
 			return // Exit the loop — user must confirm to continue

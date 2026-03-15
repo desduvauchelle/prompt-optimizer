@@ -61,7 +61,7 @@ Respond ONLY with a JSON object containing:
 Do not wrap in markdown code blocks.`
 
 		const response = await callModel(model, prompt)
-		const jsonMatch = response.match(/\{[\s\S]*\}/)
+		const jsonMatch = response.text.match(/\{[\s\S]*\}/)
 		if (!jsonMatch) {
 			return NextResponse.json(
 				{ error: "Failed to parse AI response" },

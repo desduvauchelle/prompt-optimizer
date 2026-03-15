@@ -5,6 +5,7 @@ export interface RewriteResult {
 	analysis: string
 	recommendations: string[]
 	rewrittenPrompt: string
+	cost: number
 }
 
 export async function rewritePrompt(
@@ -70,7 +71,7 @@ Respond ONLY with the JSON object. Do not wrap in markdown code blocks.`
 	const response = await callModel(model, rewriteInput)
 
 	// Parse JSON from response
-	const jsonMatch = response.match(/\{[\s\S]*\}/)
+	const jsonMatch = response.text.match(/\{[\s\S]*\}/)
 	if (!jsonMatch) {
 		throw new Error("Failed to parse rewrite response as JSON")
 	}
@@ -83,5 +84,6 @@ Respond ONLY with the JSON object. Do not wrap in markdown code blocks.`
 			? parsed.recommendations
 			: [],
 		rewrittenPrompt: parsed.rewrittenPrompt ?? currentPrompt,
+		cost: response.cost,
 	}
 }
