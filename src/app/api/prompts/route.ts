@@ -3,9 +3,27 @@ import { connectDB } from "@/lib/db/mongodb"
 import { PromptProjectModel } from "@/lib/db/models/prompt-project"
 import { z } from "zod"
 
+const FileAttachmentSchema = z.object({
+	id: z.string(),
+	filename: z.string(),
+	mimeType: z.string(),
+	data: z.string(),
+	size: z.number(),
+})
+
+const TestCaseSchema = z.object({
+	id: z.string(),
+	name: z.string().min(1),
+	content: z.string().default(""),
+	files: z.array(FileAttachmentSchema).default([]),
+})
+
 const CreateProjectSchema = z.object({
 	name: z.string().optional(),
-	sourcePrompt: z.string().min(1, "Source prompt is required"),
+	objective: z.string().default(""),
+	systemPrompt: z.string().min(1, "System prompt is required"),
+	systemPromptFiles: z.array(FileAttachmentSchema).default([]),
+	testCases: z.array(TestCaseSchema).default([]),
 	evalQuestions: z
 		.array(
 			z.object({
@@ -13,16 +31,25 @@ const CreateProjectSchema = z.object({
 				question: z.string().min(1),
 			})
 		)
-		.min(1, "At least one eval question is required"),
+		.default([]),
 	config: z.object({
 		maxIterations: z.number().int().min(1).max(50).default(3),
 		generationsPerIteration: z.number().int().min(1).max(100).default(10),
 		concurrency: z.number().int().min(1).max(20).default(5),
-		generationModel: z.string().min(1),
-		evalModel: z.string().min(1),
-		rewriteModel: z.string().min(1),
+		generationModel: z.string().default(""),
+		evalModel: z.string().default(""),
+		rewriteModel: z.string().default(""),
 		autoConfirm: z.boolean().default(false),
+	}).default({
+		maxIterations: 3,
+		generationsPerIteration: 10,
+		concurrency: 5,
+		generationModel: "",
+		evalModel: "",
+		rewriteModel: "",
+		autoConfirm: false,
 	}),
+	launch: z.boolean().default(false),
 })
 
 export async function GET() {
@@ -76,18 +103,36 @@ export async function POST(req: NextRequest) {
 		const body = await req.json()
 		const parsed = CreateProjectSchema.parse(body)
 
+		// If launching, validate all required fields
+		if (parsed.launch) {
+			if (!parsed.evalQuestions.length) {
+				return NextResponse.json(
+					{ error: "At least one eval question is required to launch" },
+					{ status: 400 }
+				)
+			}
+			if (!parsed.config.generationModel || !parsed.config.evalModel || !parsed.config.rewriteModel) {
+				return NextResponse.json(
+					{ error: "All three models must be selected to launch" },
+					{ status: 400 }
+				)
+			}
+		}
+
 		// Auto-generate name from first ~50 chars of prompt if not provided
 		const name =
 			parsed.name?.trim() ||
-			parsed.sourcePrompt.substring(0, 50).replace(/\s+\S*$/, "") + "..."
+			parsed.systemPrompt.substring(0, 50).replace(/\s+\S*$/, "") + "..."
+
+		const { launch, ...projectData } = parsed
 
 		const project = await PromptProjectModel.create({
-			...parsed,
+			...projectData,
 			name,
 			promptVersions: [
 				{
 					version: 1,
-					prompt: parsed.sourcePrompt,
+					prompt: parsed.systemPrompt,
 					changeSummary: null,
 					changeReason: null,
 					score: null,
@@ -96,7 +141,7 @@ export async function POST(req: NextRequest) {
 			],
 		})
 
-		return NextResponse.json({ project }, { status: 201 })
+		return NextResponse.json({ project, launch }, { status: 201 })
 	} catch (error) {
 		if (error instanceof z.ZodError) {
 			return NextResponse.json(

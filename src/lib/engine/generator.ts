@@ -1,44 +1,86 @@
-import { callModel } from "@/lib/openrouter/client"
+import { callModel, callModelWithMessages } from "@/lib/openrouter/client"
+import type { FileAttachment, TestCase } from "@/lib/types"
+
+interface GeneratedOutput {
+	output: string
+	testCaseId: string | null
+}
 
 export async function generateOutputs(
-	prompt: string,
+	systemPrompt: string,
+	systemFiles: FileAttachment[],
+	testCases: TestCase[],
 	model: string,
-	count: number,
+	repetitions: number,
 	concurrency: number,
 	onProgress?: (completed: number, total: number) => void
-): Promise<string[]> {
-	const results: string[] = []
+): Promise<GeneratedOutput[]> {
+	const results: GeneratedOutput[] = []
+
+	// Build task list: each test case × repetitions
+	// If no test cases, run the system prompt alone
+	interface Task {
+		testCaseId: string | null
+		userContent: string
+		userFiles: FileAttachment[]
+	}
+
+	const tasks: Task[] = []
+	if (testCases.length === 0) {
+		for (let r = 0; r < repetitions; r++) {
+			tasks.push({ testCaseId: null, userContent: "", userFiles: [] })
+		}
+	} else {
+		for (const tc of testCases) {
+			for (let r = 0; r < repetitions; r++) {
+				tasks.push({ testCaseId: tc.id, userContent: tc.content, userFiles: tc.files })
+			}
+		}
+	}
+
+	const total = tasks.length
 	let completed = 0
 
+	const runTask = async (task: Task): Promise<GeneratedOutput> => {
+		let text: string
+		if (task.userContent || task.userFiles.length > 0 || systemFiles.length > 0) {
+			text = await callModelWithMessages(
+				model,
+				systemPrompt,
+				systemFiles,
+				task.userContent,
+				task.userFiles
+			)
+		} else {
+			text = await callModel(model, systemPrompt)
+		}
+		completed++
+		onProgress?.(completed, total)
+		return { output: text, testCaseId: task.testCaseId }
+	}
+
 	// Process in chunks based on concurrency
-	for (let i = 0; i < count; i += concurrency) {
-		const batchSize = Math.min(concurrency, count - i)
-		const batch = Array.from({ length: batchSize }, () =>
-			callModel(model, prompt).then((text) => {
-				completed++
-				onProgress?.(completed, count)
-				return text
-			})
-		)
+	for (let i = 0; i < tasks.length; i += concurrency) {
+		const batchSize = Math.min(concurrency, tasks.length - i)
+		const batch = tasks.slice(i, i + batchSize).map((task) => runTask(task))
 
 		const batchResults = await Promise.allSettled(batch)
 
-		for (const result of batchResults) {
+		for (let j = 0; j < batchResults.length; j++) {
+			const result = batchResults[j]
 			if (result.status === "fulfilled") {
 				results.push(result.value)
 			} else {
 				// On failure, retry once with backoff
+				const task = tasks[i + j]
 				try {
 					await new Promise((r) => setTimeout(r, 2000))
-					const retryText = await callModel(model, prompt)
-					completed++
-					onProgress?.(completed, count)
-					results.push(retryText)
+					const retryResult = await runTask(task)
+					results.push(retryResult)
 				} catch {
-					// If retry also fails, push an error marker
-					results.push("[GENERATION_FAILED]")
+					results.push({ output: "[GENERATION_FAILED]", testCaseId: task.testCaseId })
 					completed++
-					onProgress?.(completed, count)
+					onProgress?.(completed, total)
 				}
 			}
 		}

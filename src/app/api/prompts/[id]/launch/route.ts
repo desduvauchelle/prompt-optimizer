@@ -4,7 +4,7 @@ import { PromptProjectModel } from "@/lib/db/models/prompt-project"
 import { runOptimization } from "@/lib/engine/orchestrator"
 
 export async function POST(
-	_req: NextRequest,
+	req: NextRequest,
 	{ params }: { params: Promise<{ id: string }> }
 ) {
 	try {
@@ -16,11 +16,23 @@ export async function POST(
 			return NextResponse.json({ error: "Project not found" }, { status: 404 })
 		}
 
-		if (!["draft", "paused"].includes(project.status)) {
+		if (!["draft", "paused", "completed"].includes(project.status)) {
 			return NextResponse.json(
-				{ error: "Can only launch draft or paused projects" },
+				{ error: "Can only launch draft, paused, or completed projects" },
 				{ status: 400 }
 			)
+		}
+
+		// For completed projects, extend maxIterations to continue iterating
+		if (project.status === "completed") {
+			const body = await req.json().catch(() => ({}))
+			const additionalIterations = Math.min(
+				Math.max(Math.floor(Number(body.additionalIterations) || 0), 1),
+				50
+			)
+			await PromptProjectModel.findByIdAndUpdate(id, {
+				$inc: { "config.maxIterations": additionalIterations },
+			})
 		}
 
 		// Fire-and-forget: start optimization in background

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, Fragment } from "react"
 import { Check, X, ChevronDown, ChevronRight } from "lucide-react"
 import {
 	Table,
@@ -46,9 +46,8 @@ export function GenerationResultsTable({
 					{generations.map((gen, i) => {
 						const isExpanded = expandedRow === gen.id
 						return (
-							<>
+							<Fragment key={gen.id}>
 								<TableRow
-									key={gen.id}
 									className="cursor-pointer hover:bg-accent/50"
 									onClick={() =>
 										setExpandedRow(isExpanded ? null : gen.id)
@@ -83,7 +82,7 @@ export function GenerationResultsTable({
 									</TableCell>
 								</TableRow>
 								{isExpanded && (
-									<TableRow key={`${gen.id}-expanded`}>
+									<TableRow>
 										<TableCell
 											colSpan={evalQuestions.length + 3}
 											className="bg-muted/50"
@@ -94,7 +93,7 @@ export function GenerationResultsTable({
 										</TableCell>
 									</TableRow>
 								)}
-							</>
+							</Fragment>
 						)
 					})}
 				</TableBody>

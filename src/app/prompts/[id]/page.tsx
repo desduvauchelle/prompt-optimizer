@@ -2,11 +2,20 @@
 
 import { useEffect, useState, useCallback, use } from "react"
 import Link from "next/link"
-import { ArrowLeft, Play, Trash2 } from "lucide-react"
+import { ArrowLeft, Pencil, Play, RotateCcw, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card"
 import { ProgressDisplay } from "@/components/prompt/progress-display"
 import { ScoreChart } from "@/components/prompt/score-chart"
 import { IterationTimeline } from "@/components/prompt/iteration-timeline"
@@ -38,6 +47,7 @@ export default function ProjectDetailPage({
 	const [loading, setLoading] = useState(true)
 	const [phase, setPhase] = useState<ProgressPhase>("idle")
 	const [progress, setProgress] = useState({ completed: 0, total: 0 })
+	const [additionalIterations, setAdditionalIterations] = useState(3)
 
 	const fetchProject = useCallback(async () => {
 		try {
@@ -95,6 +105,28 @@ export default function ProjectDetailPage({
 	const handleLaunch = async () => {
 		await fetch(`/api/prompts/${id}/launch`, { method: "POST" })
 		setProject((prev) => (prev ? { ...prev, status: "running" } : prev))
+		setPhase("generating")
+	}
+
+	const handleContinue = async () => {
+		await fetch(`/api/prompts/${id}/launch`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ additionalIterations }),
+		})
+		setProject((prev) =>
+			prev
+				? {
+					...prev,
+					status: "running",
+					config: {
+						...prev.config,
+						maxIterations:
+							prev.config.maxIterations + additionalIterations,
+					},
+				}
+				: prev
+		)
 		setPhase("generating")
 	}
 
@@ -166,13 +198,23 @@ export default function ProjectDetailPage({
 							</span>
 						</div>
 					</div>
-					<div className="flex gap-2">
-						{["draft", "paused"].includes(project.status) && (
-							<Button onClick={handleLaunch}>
-								<Play className="mr-2 h-4 w-4" />
-								{project.status === "paused" ? "Resume" : "Launch"}
-							</Button>
-						)}
+					<div className="flex gap-2">					{project.status !== "running" && (
+						<Button
+							variant="outline"
+							size="sm"
+							asChild
+						>
+							<Link href={`/prompts/${id}/edit`}>
+								<Pencil className="mr-2 h-3.5 w-3.5" />
+								Edit Setup
+							</Link>
+						</Button>
+					)}						{["draft", "paused"].includes(project.status) && (
+						<Button onClick={handleLaunch}>
+							<Play className="mr-2 h-4 w-4" />
+							{project.status === "paused" ? "Resume" : "Launch"}
+						</Button>
+					)}
 						<Button variant="ghost" size="icon" onClick={handleDelete}>
 							<Trash2 className="h-4 w-4" />
 						</Button>
@@ -180,13 +222,119 @@ export default function ProjectDetailPage({
 				</div>
 			</div>
 
-			{/* Source prompt */}
+			{/* Config Summary */}
+			<Card>
+				<CardHeader className="pb-3">
+					<CardTitle className="text-base">Configuration</CardTitle>
+					{project.status === "completed" && (
+						<CardDescription>
+							Optimization completed. You can continue iterating below.
+						</CardDescription>
+					)}
+				</CardHeader>
+				<CardContent>
+					<div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm sm:grid-cols-3">
+						<div>
+							<span className="text-muted-foreground">Generation Model</span>
+							<p className="font-medium truncate">{project.config.generationModel || "—"}</p>
+						</div>
+						<div>
+							<span className="text-muted-foreground">Evaluation Model</span>
+							<p className="font-medium truncate">{project.config.evalModel || "—"}</p>
+						</div>
+						<div>
+							<span className="text-muted-foreground">Rewrite Model</span>
+							<p className="font-medium truncate">{project.config.rewriteModel || "—"}</p>
+						</div>
+						<div>
+							<span className="text-muted-foreground">Iterations</span>
+							<p className="font-medium">{project.currentIteration} / {project.config.maxIterations}</p>
+						</div>
+						<div>
+							<span className="text-muted-foreground">Reps per Test Case</span>
+							<p className="font-medium">{project.config.generationsPerIteration}</p>
+						</div>
+						<div>
+							<span className="text-muted-foreground">Auto-confirm</span>
+							<p className="font-medium">{project.config.autoConfirm ? "Yes" : "No"}</p>
+						</div>
+					</div>
+
+					{project.status === "completed" && (
+						<div className="mt-4 flex items-end gap-3 border-t pt-4">
+							<div className="space-y-1.5">
+								<Label htmlFor="additional-iterations" className="text-sm">
+									Additional iterations
+								</Label>
+								<Input
+									id="additional-iterations"
+									type="number"
+									min={1}
+									max={50}
+									value={additionalIterations}
+									onChange={(e) =>
+										setAdditionalIterations(
+											Math.max(1, parseInt(e.target.value) || 1)
+										)
+									}
+									className="w-24"
+								/>
+							</div>
+							<Button onClick={handleContinue}>
+								<RotateCcw className="mr-2 h-4 w-4" />
+								Continue Iterating
+							</Button>
+						</div>
+					)}
+				</CardContent>
+			</Card>
+
+			{/* Objective */}
+			{project.objective && (
+				<div>
+					<h3 className="text-sm font-medium mb-2">Objective</h3>
+					<p className="text-sm text-muted-foreground">{project.objective}</p>
+				</div>
+			)}
+
+			{/* System prompt */}
 			<div>
-				<h3 className="text-sm font-medium mb-2">Source Prompt</h3>
+				<h3 className="text-sm font-medium mb-2">System Prompt</h3>
 				<pre className="whitespace-pre-wrap rounded-md bg-muted p-3 text-sm font-mono max-h-32 overflow-y-auto">
-					{project.sourcePrompt}
+					{project.systemPrompt}
 				</pre>
 			</div>
+
+			{/* Test Cases */}
+			{project.testCases && project.testCases.length > 0 && (
+				<div>
+					<h3 className="text-sm font-medium mb-2">
+						Test Cases ({project.testCases.length})
+					</h3>
+					<div className="space-y-2">
+						{project.testCases.map((tc, i) => (
+							<div
+								key={tc.id}
+								className="rounded-md bg-muted p-3 text-sm"
+							>
+								<span className="font-medium">
+									{tc.name || `Test Case ${i + 1}`}
+								</span>
+								{tc.content && (
+									<pre className="mt-1 whitespace-pre-wrap font-mono text-muted-foreground max-h-20 overflow-y-auto">
+										{tc.content}
+									</pre>
+								)}
+								{tc.files && tc.files.length > 0 && (
+									<p className="mt-1 text-xs text-muted-foreground">
+										{tc.files.length} file(s) attached
+									</p>
+								)}
+							</div>
+						))}
+					</div>
+				</div>
+			)}
 
 			{/* Eval questions */}
 			<div>

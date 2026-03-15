@@ -1,21 +1,31 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Trash2 } from "lucide-react"
+import { Plus, Trash2, Sparkles, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import type { EvalQuestion } from "@/lib/types"
+import { AIEvalPanel } from "@/components/prompt/ai-eval-panel"
+import type { EvalQuestion, TestCase } from "@/lib/types"
 
 interface EvalQuestionsEditorProps {
 	questions: EvalQuestion[]
 	onChange: (questions: EvalQuestion[]) => void
+	systemPrompt?: string
+	objective?: string
+	testCases?: TestCase[]
+	evalModel?: string
 }
 
 export function EvalQuestionsEditor({
 	questions,
 	onChange,
+	systemPrompt = "",
+	objective = "",
+	testCases = [],
+	evalModel = "",
 }: EvalQuestionsEditorProps) {
 	const [newQuestion, setNewQuestion] = useState("")
+	const [aiMode, setAiMode] = useState<"generate" | "review" | null>(null)
 
 	const addQuestion = () => {
 		const trimmed = newQuestion.trim()
@@ -35,6 +45,8 @@ export function EvalQuestionsEditor({
 	const updateQuestion = (id: string, question: string) => {
 		onChange(questions.map((q) => (q.id === id ? { ...q, question } : q)))
 	}
+
+	const canUseAI = systemPrompt.trim() && evalModel
 
 	return (
 		<div className="space-y-3">
@@ -83,6 +95,50 @@ export function EvalQuestionsEditor({
 					<Plus className="h-4 w-4" />
 				</Button>
 			</div>
+
+			{/* AI buttons */}
+			{canUseAI && !aiMode && (
+				<div className="flex gap-2 pt-1">
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="text-xs"
+						onClick={() => setAiMode("generate")}
+					>
+						<Sparkles className="mr-1 h-3 w-3" />
+						Generate with AI
+					</Button>
+					{questions.length > 0 && (
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="text-xs"
+							onClick={() => setAiMode("review")}
+						>
+							<Search className="mr-1 h-3 w-3" />
+							Review with AI
+						</Button>
+					)}
+				</div>
+			)}
+
+			{/* AI panel */}
+			{aiMode && (
+				<AIEvalPanel
+					mode={aiMode}
+					systemPrompt={systemPrompt}
+					objective={objective}
+					testCases={testCases}
+					evalQuestions={questions}
+					evalModel={evalModel}
+					onAddQuestion={(q) => onChange([...questions, q])}
+					onUpdateQuestion={(id, question) => updateQuestion(id, question)}
+					onRemoveQuestion={(id) => removeQuestion(id)}
+					onClose={() => setAiMode(null)}
+				/>
+			)}
 		</div>
 	)
 }

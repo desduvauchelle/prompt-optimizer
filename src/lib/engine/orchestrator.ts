@@ -24,14 +24,18 @@ export async function runOptimization(projectId: string): Promise<void> {
 	const project = await PromptProjectModel.findById(projectId)
 	if (!project) throw new Error("Project not found")
 
-	const { config, evalQuestions } = project
+	const { config, evalQuestions, testCases, systemPromptFiles, objective } = project
 	let currentPrompt =
 		project.iterations.length > 0
 			? project.iterations[project.iterations.length - 1].rewrittenPrompt ??
-			project.sourcePrompt
-			: project.sourcePrompt
+			project.systemPrompt
+			: project.systemPrompt
 
 	const startIteration = project.currentIteration
+
+	// Total outputs per iteration = max(testCases, 1) × generationsPerIteration
+	const testCaseCount = Math.max(testCases.length, 1)
+	const totalPerIteration = testCaseCount * config.generationsPerIteration
 
 	for (let i = startIteration; i < config.maxIterations; i++) {
 		// Update status to running
@@ -60,11 +64,13 @@ export async function runOptimization(projectId: string): Promise<void> {
 		progressMap.set(projectId, {
 			phase: "generating",
 			completed: 0,
-			total: config.generationsPerIteration,
+			total: totalPerIteration,
 		})
 
 		const outputs = await generateOutputs(
 			currentPrompt,
+			systemPromptFiles ?? [],
+			testCases ?? [],
 			config.generationModel,
 			config.generationsPerIteration,
 			config.concurrency,
@@ -88,7 +94,8 @@ export async function runOptimization(projectId: string): Promise<void> {
 		const evalResults = await evaluateOutputs(
 			outputs,
 			evalQuestions,
-			config.evalModel
+			config.evalModel,
+			testCases
 		)
 
 		const avgScore =
@@ -111,7 +118,9 @@ export async function runOptimization(projectId: string): Promise<void> {
 			currentPrompt,
 			evalQuestions,
 			evalResults,
-			config.rewriteModel
+			config.rewriteModel,
+			objective,
+			testCases
 		)
 
 		// Update iteration with rewrite results

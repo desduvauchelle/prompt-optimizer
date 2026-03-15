@@ -15,6 +15,15 @@ export async function GET(
 			return NextResponse.json({ error: "Project not found" }, { status: 404 })
 		}
 
+		// Backwards compat: map old sourcePrompt to systemPrompt
+		const p = project as Record<string, unknown>
+		if (!p.systemPrompt && p.sourcePrompt) {
+			p.systemPrompt = p.sourcePrompt
+		}
+		if (!p.testCases) p.testCases = []
+		if (!p.systemPromptFiles) p.systemPromptFiles = []
+		if (!p.objective) p.objective = ""
+
 		return NextResponse.json({ project })
 	} catch (error) {
 		const message =
@@ -36,9 +45,9 @@ export async function PUT(
 			return NextResponse.json({ error: "Project not found" }, { status: 404 })
 		}
 
-		if (!["draft", "paused"].includes(project.status)) {
+		if (project.status === "running") {
 			return NextResponse.json(
-				{ error: "Can only edit draft or paused projects" },
+				{ error: "Cannot edit a project while it is running" },
 				{ status: 400 }
 			)
 		}
@@ -48,7 +57,10 @@ export async function PUT(
 		// Only allow updating specific fields
 		const allowedFields = [
 			"name",
-			"sourcePrompt",
+			"objective",
+			"systemPrompt",
+			"systemPromptFiles",
+			"testCases",
 			"evalQuestions",
 			"config",
 		] as const

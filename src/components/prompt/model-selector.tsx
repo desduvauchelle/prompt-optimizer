@@ -27,11 +27,14 @@ async function fetchModels(): Promise<ModelInfo[]> {
 
 export function ModelSelector({ value, onChange, label }: ModelSelectorProps) {
 	const [search, setSearch] = useState("")
+	const [open, setOpen] = useState(false)
 
 	const { data: models = [], isLoading: loading } = useQuery<ModelInfo[]>({
 		queryKey: ["models"],
 		queryFn: fetchModels,
 	})
+
+	const selectedModel = models.find((m) => m.id === value)
 
 	const filtered = models.filter(
 		(m) =>
@@ -51,9 +54,19 @@ export function ModelSelector({ value, onChange, label }: ModelSelectorProps) {
 	return (
 		<div className="space-y-2">
 			<label className="text-sm font-medium">{label}</label>
-			<Select value={value} onValueChange={onChange}>
+			<Select
+				value={value}
+				onValueChange={onChange}
+				open={open}
+				onOpenChange={(isOpen) => {
+					setOpen(isOpen)
+					if (!isOpen) setSearch("")
+				}}
+			>
 				<SelectTrigger>
-					<SelectValue placeholder="Select a model..." />
+					<SelectValue placeholder="Select a model...">
+						{selectedModel?.name ?? (value ? value : undefined)}
+					</SelectValue>
 				</SelectTrigger>
 				<SelectContent>
 					<div className="p-2">
@@ -61,6 +74,7 @@ export function ModelSelector({ value, onChange, label }: ModelSelectorProps) {
 							placeholder="Search models..."
 							value={search}
 							onChange={(e) => setSearch(e.target.value)}
+							onKeyDown={(e) => e.stopPropagation()}
 							className="h-8"
 						/>
 					</div>

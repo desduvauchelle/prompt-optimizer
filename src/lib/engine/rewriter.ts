@@ -1,5 +1,5 @@
 import { callModel } from "@/lib/openrouter/client"
-import type { EvalQuestion, GenerationResult } from "@/lib/types"
+import type { EvalQuestion, GenerationResult, TestCase } from "@/lib/types"
 
 export interface RewriteResult {
 	analysis: string
@@ -11,7 +11,9 @@ export async function rewritePrompt(
 	currentPrompt: string,
 	evalQuestions: EvalQuestion[],
 	evalResults: GenerationResult[],
-	model: string
+	model: string,
+	objective?: string,
+	testCases?: TestCase[]
 ): Promise<RewriteResult> {
 	// Calculate pass rates per question
 	const passRates = evalQuestions.map((q) => {
@@ -35,13 +37,21 @@ export async function rewritePrompt(
 			evalResults.length
 			: 0
 
-	const rewriteInput = `You are a prompt engineering expert. Your task is to analyze evaluation results and improve a prompt.
+	const objectiveSection = objective
+		? `\nOBJECTIVE OF THIS PROMPT:\n${objective}\n`
+		: ""
 
-CURRENT PROMPT:
+	const testCaseSection = testCases && testCases.length > 0
+		? `\nTEST CASES (fixed user inputs the prompt is benchmarked against — do NOT modify these):\n${testCases.map((tc, i) => `${i + 1}. "${tc.name}": ${tc.content.substring(0, 200)}`).join("\n")}\n`
+		: ""
+
+	const rewriteInput = `You are a prompt engineering expert. Your task is to analyze evaluation results and improve a SYSTEM PROMPT. The test cases (user inputs) are fixed and must not be changed — only improve the system prompt.
+${objectiveSection}
+CURRENT SYSTEM PROMPT:
 """
 ${currentPrompt}
 """
-
+${testCaseSection}
 EVALUATION RESULTS:
 - Average score: ${(avgScore * 100).toFixed(1)}%
 - Pass rates per criteria:
@@ -51,9 +61,9 @@ WORST PERFORMING OUTPUTS (examples of what the current prompt produces poorly):
 ${worstOutputs.map((o, i) => `--- Output ${i + 1} ---\n${o.substring(0, 500)}`).join("\n\n")}
 
 Based on this analysis, respond with a JSON object containing:
-1. "analysis": A brief analysis of what's going wrong with the current prompt
+1. "analysis": A brief analysis of what's going wrong with the current system prompt
 2. "recommendations": An array of specific changes to make
-3. "rewrittenPrompt": The improved prompt that addresses the issues
+3. "rewrittenPrompt": The improved system prompt that addresses the issues
 
 Respond ONLY with the JSON object. Do not wrap in markdown code blocks.`
 

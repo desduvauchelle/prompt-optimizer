@@ -19,29 +19,48 @@ import { EvalQuestionsEditor } from "@/components/prompt/eval-questions-editor"
 import { ModelSelector } from "@/components/prompt/model-selector"
 import { FileUploadButton } from "@/components/prompt/file-upload-button"
 import { TestCasesEditor } from "@/components/prompt/test-cases-editor"
-import type { EvalQuestion, FileAttachment, TestCase } from "@/lib/types"
+import type { EvalQuestion, FileAttachment, PromptProject, TestCase } from "@/lib/types"
 import { Loader2, Rocket, Save } from "lucide-react"
 
-export function CreateForm() {
+interface EditFormProps {
+	projectId: string
+	project: PromptProject
+}
+
+export function EditForm({ projectId, project }: EditFormProps) {
 	const router = useRouter()
 	const [submitting, setSubmitting] = useState(false)
 
-	// Form state
-	const [name, setName] = useState("")
-	const [objective, setObjective] = useState("")
-	const [systemPrompt, setSystemPrompt] = useState("")
-	const [systemPromptFiles, setSystemPromptFiles] = useState<FileAttachment[]>([])
-	const [testCases, setTestCases] = useState<TestCase[]>([])
-	const [evalQuestions, setEvalQuestions] = useState<EvalQuestion[]>([])
-	const [maxIterations, setMaxIterations] = useState(3)
-	const [generationsPerIteration, setGenerationsPerIteration] = useState(10)
-	const [concurrency, setConcurrency] = useState(5)
-	const [generationModel, setGenerationModel] = useState("")
-	const [evalModel, setEvalModel] = useState("")
-	const [rewriteModel, setRewriteModel] = useState("")
-	const [autoConfirm, setAutoConfirm] = useState(false)
+	// Pre-populate from existing project
+	const [name, setName] = useState(project.name ?? "")
+	const [objective, setObjective] = useState(project.objective ?? "")
+	const [systemPrompt, setSystemPrompt] = useState(project.systemPrompt ?? "")
+	const [systemPromptFiles, setSystemPromptFiles] = useState<FileAttachment[]>(
+		project.systemPromptFiles ?? []
+	)
+	const [testCases, setTestCases] = useState<TestCase[]>(project.testCases ?? [])
+	const [evalQuestions, setEvalQuestions] = useState<EvalQuestion[]>(
+		project.evalQuestions ?? []
+	)
+	const [maxIterations, setMaxIterations] = useState(
+		project.config.maxIterations ?? 3
+	)
+	const [generationsPerIteration, setGenerationsPerIteration] = useState(
+		project.config.generationsPerIteration ?? 10
+	)
+	const [concurrency, setConcurrency] = useState(project.config.concurrency ?? 5)
+	const [generationModel, setGenerationModel] = useState(
+		project.config.generationModel ?? ""
+	)
+	const [evalModel, setEvalModel] = useState(project.config.evalModel ?? "")
+	const [rewriteModel, setRewriteModel] = useState(
+		project.config.rewriteModel ?? ""
+	)
+	const [autoConfirm, setAutoConfirm] = useState(
+		project.config.autoConfirm ?? false
+	)
 
-	const canSaveDraft = systemPrompt.trim().length > 0
+	const canSave = systemPrompt.trim().length > 0
 	const canLaunch =
 		systemPrompt.trim() &&
 		evalQuestions.length > 0 &&
@@ -49,14 +68,14 @@ export function CreateForm() {
 		evalModel &&
 		rewriteModel
 
-	const handleSubmit = async (launch: boolean) => {
-		if (launch && !canLaunch) return
-		if (!launch && !canSaveDraft) return
+	const handleSubmit = async (andLaunch: boolean) => {
+		if (andLaunch && !canLaunch) return
+		if (!canSave) return
 		setSubmitting(true)
 
 		try {
-			const res = await fetch("/api/prompts", {
-				method: "POST",
+			const res = await fetch(`/api/prompts/${projectId}`, {
+				method: "PUT",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					name: name.trim() || undefined,
@@ -65,7 +84,6 @@ export function CreateForm() {
 					systemPromptFiles,
 					testCases,
 					evalQuestions,
-					launch,
 					config: {
 						maxIterations,
 						generationsPerIteration,
@@ -79,11 +97,9 @@ export function CreateForm() {
 			})
 
 			const data = await res.json()
-			if (!res.ok) throw new Error(data.error ?? "Failed to create project")
+			if (!res.ok) throw new Error(data.error ?? "Failed to save changes")
 
-			const projectId = data.project._id
-
-			if (launch) {
+			if (andLaunch) {
 				await fetch(`/api/prompts/${projectId}/launch`, { method: "POST" })
 			}
 
@@ -95,6 +111,11 @@ export function CreateForm() {
 			setSubmitting(false)
 		}
 	}
+
+	const canLaunchFromStatus =
+		project.status === "draft" ||
+		project.status === "paused" ||
+		project.status === "completed"
 
 	return (
 		<div className="mx-auto max-w-7xl">
@@ -257,10 +278,7 @@ export function CreateForm() {
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<TestCasesEditor
-								testCases={testCases}
-								onChange={setTestCases}
-							/>
+							<TestCasesEditor testCases={testCases} onChange={setTestCases} />
 						</CardContent>
 					</Card>
 
@@ -290,28 +308,37 @@ export function CreateForm() {
 			{/* ── Actions Bar ── */}
 			<div className="mt-6 flex justify-end gap-3">
 				<Button
+					variant="ghost"
+					onClick={() => router.push(`/prompts/${projectId}`)}
+					disabled={submitting}
+				>
+					Cancel
+				</Button>
+				<Button
 					variant="outline"
 					onClick={() => handleSubmit(false)}
-					disabled={!canSaveDraft || submitting}
+					disabled={!canSave || submitting}
 				>
 					{submitting ? (
 						<Loader2 className="mr-2 h-4 w-4 animate-spin" />
 					) : (
 						<Save className="mr-2 h-4 w-4" />
 					)}
-					Save as Draft
+					Save Changes
 				</Button>
-				<Button
-					onClick={() => handleSubmit(true)}
-					disabled={!canLaunch || submitting}
-				>
-					{submitting ? (
-						<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-					) : (
-						<Rocket className="mr-2 h-4 w-4" />
-					)}
-					Create &amp; Launch
-				</Button>
+				{canLaunchFromStatus && (
+					<Button
+						onClick={() => handleSubmit(true)}
+						disabled={!canLaunch || submitting}
+					>
+						{submitting ? (
+							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+						) : (
+							<Rocket className="mr-2 h-4 w-4" />
+						)}
+						Save &amp; Launch
+					</Button>
+				)}
 			</div>
 		</div>
 	)

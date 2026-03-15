@@ -17,6 +17,7 @@ const GenerationResultSchema = new Schema(
 		output: { type: String, required: true },
 		evalScores: { type: Map, of: Boolean, default: {} },
 		overallScore: { type: Number, default: 0 },
+		testCaseId: { type: String, default: null },
 	},
 	{ _id: false }
 )
@@ -63,10 +64,31 @@ const ProjectConfigSchema = new Schema(
 		maxIterations: { type: Number, default: 3 },
 		generationsPerIteration: { type: Number, default: 10 },
 		concurrency: { type: Number, default: 5 },
-		generationModel: { type: String, required: true },
-		evalModel: { type: String, required: true },
-		rewriteModel: { type: String, required: true },
+		generationModel: { type: String, default: "" },
+		evalModel: { type: String, default: "" },
+		rewriteModel: { type: String, default: "" },
 		autoConfirm: { type: Boolean, default: false },
+	},
+	{ _id: false }
+)
+
+const FileAttachmentSchema = new Schema(
+	{
+		id: { type: String, required: true },
+		filename: { type: String, required: true },
+		mimeType: { type: String, required: true },
+		data: { type: String, required: true },
+		size: { type: Number, required: true },
+	},
+	{ _id: false }
+)
+
+const TestCaseSchema = new Schema(
+	{
+		id: { type: String, required: true },
+		name: { type: String, required: true },
+		content: { type: String, default: "" },
+		files: { type: [FileAttachmentSchema], default: [] },
 	},
 	{ _id: false }
 )
@@ -74,7 +96,10 @@ const ProjectConfigSchema = new Schema(
 const PromptProjectSchema = new Schema(
 	{
 		name: { type: String, required: true },
-		sourcePrompt: { type: String, required: true },
+		objective: { type: String, default: "" },
+		systemPrompt: { type: String, required: true },
+		systemPromptFiles: { type: [FileAttachmentSchema], default: [] },
+		testCases: { type: [TestCaseSchema], default: [] },
 		evalQuestions: { type: [EvalQuestionSchema], default: [] },
 		config: { type: ProjectConfigSchema, required: true },
 		iterations: { type: [IterationResultSchema], default: [] },

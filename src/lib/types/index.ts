@@ -3,11 +3,27 @@ export interface EvalQuestion {
 	question: string
 }
 
+export interface FileAttachment {
+	id: string
+	filename: string
+	mimeType: string
+	data: string
+	size: number
+}
+
+export interface TestCase {
+	id: string
+	name: string
+	content: string
+	files: FileAttachment[]
+}
+
 export interface GenerationResult {
 	id: string
 	output: string
 	evalScores: Record<string, boolean>
 	overallScore: number
+	testCaseId: string | null
 }
 
 export type IterationStatus =
@@ -53,7 +69,10 @@ export interface ProjectConfig {
 export interface PromptProject {
 	_id: string
 	name: string
-	sourcePrompt: string
+	objective: string
+	systemPrompt: string
+	systemPromptFiles: FileAttachment[]
+	testCases: TestCase[]
 	evalQuestions: EvalQuestion[]
 	config: ProjectConfig
 	iterations: IterationResult[]
@@ -77,4 +96,11 @@ export interface ModelInfo {
 	id: string
 	name: string
 	pricing: { prompt: string; completion: string } | null
+}
+
+export interface EvalSuggestion {
+	type: "add" | "update" | "remove"
+	questionId?: string
+	question: string
+	reason: string
 }

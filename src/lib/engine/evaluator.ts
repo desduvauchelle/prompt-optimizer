@@ -1,21 +1,29 @@
 import { callModel } from "@/lib/openrouter/client"
-import type { EvalQuestion, GenerationResult } from "@/lib/types"
+import type { EvalQuestion, GenerationResult, TestCase } from "@/lib/types"
 import { randomId } from "@/lib/engine/utils"
 
+interface GeneratedOutput {
+	output: string
+	testCaseId: string | null
+}
+
 export async function evaluateOutputs(
-	outputs: string[],
+	outputs: GeneratedOutput[],
 	evalQuestions: EvalQuestion[],
-	model: string
+	model: string,
+	testCases?: TestCase[]
 ): Promise<GenerationResult[]> {
 	const results: GenerationResult[] = []
+	const testCaseMap = new Map(testCases?.map((tc) => [tc.id, tc]) ?? [])
 
-	for (const output of outputs) {
-		if (output === "[GENERATION_FAILED]") {
+	for (const item of outputs) {
+		if (item.output === "[GENERATION_FAILED]") {
 			results.push({
 				id: randomId(),
-				output,
+				output: item.output,
 				evalScores: Object.fromEntries(evalQuestions.map((q) => [q.id, false])),
 				overallScore: 0,
+				testCaseId: item.testCaseId,
 			})
 			continue
 		}
@@ -24,11 +32,17 @@ export async function evaluateOutputs(
 			.map((q, i) => `${i + 1}. ${q.question}`)
 			.join("\n")
 
-		const evalPrompt = `You are an evaluator. Given the following output, answer each question with true or false.
+		// Include test case context if available
+		const testCase = item.testCaseId ? testCaseMap.get(item.testCaseId) : null
+		const inputSection = testCase
+			? `\nINPUT (test case "${testCase.name}"):\n"""\n${testCase.content}\n"""\n`
+			: ""
 
+		const evalPrompt = `You are an evaluator. Given the following${testCase ? " input and" : ""} output, answer each question with true or false.
+${inputSection}
 OUTPUT:
 """
-${output}
+${item.output}
 """
 
 QUESTIONS:
@@ -40,7 +54,6 @@ Example: {"1": true, "2": false, "3": true}`
 		try {
 			const response = await callModel(model, evalPrompt)
 
-			// Parse JSON from response - find the JSON object in the text
 			const jsonMatch = response.match(/\{[^}]+\}/)
 			const parsed: Record<string, boolean> = jsonMatch
 				? JSON.parse(jsonMatch[0])
@@ -60,19 +73,20 @@ Example: {"1": true, "2": false, "3": true}`
 
 			results.push({
 				id: randomId(),
-				output,
+				output: item.output,
 				evalScores,
 				overallScore,
+				testCaseId: item.testCaseId,
 			})
 		} catch {
-			// If eval fails, mark all as false
 			results.push({
 				id: randomId(),
-				output,
+				output: item.output,
 				evalScores: Object.fromEntries(
 					evalQuestions.map((q) => [q.id, false])
 				),
 				overallScore: 0,
+				testCaseId: item.testCaseId,
 			})
 		}
 	}
