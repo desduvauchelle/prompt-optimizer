@@ -14,6 +14,21 @@ interface RunProgress {
 
 const progressMap = new Map<string, RunProgress>()
 
+// In-memory cancellation flags
+const canceledProjects = new Set<string>()
+
+export function cancelOptimization(projectId: string): void {
+	canceledProjects.add(projectId)
+}
+
+function isCanceled(projectId: string): boolean {
+	return canceledProjects.has(projectId)
+}
+
+function clearCancel(projectId: string): void {
+	canceledProjects.delete(projectId)
+}
+
 export function getProgress(projectId: string): RunProgress {
 	return progressMap.get(projectId) ?? { phase: "idle", completed: 0, total: 0 }
 }
@@ -38,6 +53,13 @@ export async function runOptimization(projectId: string): Promise<void> {
 	const totalPerIteration = testCaseCount * config.generationsPerIteration
 
 	for (let i = startIteration; i < config.maxIterations; i++) {
+		// Check for cancellation at the start of each iteration
+		if (isCanceled(projectId)) {
+			clearCancel(projectId)
+			progressMap.set(projectId, { phase: "idle", completed: 0, total: 0 })
+			return
+		}
+
 		// Update status to running
 		await PromptProjectModel.findByIdAndUpdate(projectId, {
 			status: "running",
@@ -80,6 +102,14 @@ export async function runOptimization(projectId: string): Promise<void> {
 			}
 		)
 
+		// Check for cancellation after generation
+		if (isCanceled(projectId)) {
+			clearCancel(projectId)
+			progressMap.set(projectId, { phase: "idle", completed: 0, total: 0 })
+			await PromptProjectModel.findByIdAndUpdate(projectId, { status: "paused" })
+			return
+		}
+
 		// --- EVALUATION PHASE ---
 		progressMap.set(projectId, {
 			phase: "evaluating",
@@ -99,6 +129,14 @@ export async function runOptimization(projectId: string): Promise<void> {
 			testCases
 		)
 
+		// Check for cancellation after evaluation
+		if (isCanceled(projectId)) {
+			clearCancel(projectId)
+			progressMap.set(projectId, { phase: "idle", completed: 0, total: 0 })
+			await PromptProjectModel.findByIdAndUpdate(projectId, { status: "paused" })
+			return
+		}
+
 		const avgScore =
 			evalResults.length > 0
 				? evalResults.reduce((sum, r) => sum + r.overallScore, 0) /
@@ -115,8 +153,14 @@ export async function runOptimization(projectId: string): Promise<void> {
 			[`iterations.${i}.status`]: "rewriting",
 		})
 
+		// Update the score of the version that was just tested (version = i+1)
+		await PromptProjectModel.updateOne(
+			{ _id: projectId, "promptVersions.version": i + 1 },
+			{ $set: { "promptVersions.$.score": avgScore } }
+		)
+
 		// Check success threshold — if score meets it, stop early
-		const threshold = config.successThreshold ?? 0
+		const threshold = config.successThreshold ?? 90
 		if (threshold > 0 && avgScore >= threshold / 100) {
 			const iterationCost = genEvalCost
 			await PromptProjectModel.findByIdAndUpdate(projectId, {
@@ -155,13 +199,13 @@ export async function runOptimization(projectId: string): Promise<void> {
 		// Check if this is the last iteration
 		const isLastIteration = i === config.maxIterations - 1
 
-		// Build new version entry
+		// Build new version entry — score is null because this version hasn't been tested yet
 		const newVersion = {
 			version: i + 2, // version 1 = original, so iteration 0 produces version 2
 			prompt: rewriteResult.rewrittenPrompt,
 			changeSummary: rewriteResult.recommendations.join("; "),
 			changeReason: rewriteResult.analysis,
-			score: avgScore,
+			score: null,
 			createdAt: new Date(),
 		}
 
@@ -232,7 +276,7 @@ export async function confirmIteration(
 		prompt: finalPrompt,
 		changeSummary,
 		changeReason,
-		score: lastIteration.averageScore ?? null,
+		score: null, // score will be assigned when this version is evaluated in the next iteration
 		createdAt: new Date(),
 	}
 
@@ -248,6 +292,12 @@ export async function confirmIteration(
 			$push: { promptVersions: newVersion },
 		})
 	}
+
+	// Update score on the version that was just tested (version = iterationNumber)
+	await PromptProjectModel.updateOne(
+		{ _id: projectId, "promptVersions.version": lastIteration.iterationNumber },
+		{ $set: { "promptVersions.$.score": lastIteration.averageScore ?? 0 } }
+	)
 
 	// Continue the optimization loop
 	await runOptimization(projectId)

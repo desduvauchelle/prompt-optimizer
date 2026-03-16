@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, ChevronRight, Loader2 } from "lucide-react"
+import { ChevronDown, ChevronRight, Loader2, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { CopyButton } from "@/components/ui/copy-button"
 import { GenerationResultsTable } from "@/components/prompt/generation-results-table"
 import { RecommendationPanel } from "@/components/prompt/recommendation-panel"
 import type { IterationResult, EvalQuestion } from "@/lib/types"
@@ -13,6 +14,7 @@ interface IterationDetailProps {
 	previousScore: number | null
 	isAwaitingConfirmation: boolean
 	onConfirm: (editedPrompt?: string) => void
+	onDelete?: () => void
 }
 
 export function IterationDetail({
@@ -21,6 +23,7 @@ export function IterationDetail({
 	previousScore,
 	isAwaitingConfirmation,
 	onConfirm,
+	onDelete,
 }: IterationDetailProps) {
 	const [expanded, setExpanded] = useState(
 		isAwaitingConfirmation ||
@@ -41,16 +44,16 @@ export function IterationDetail({
 
 	return (
 		<div className="rounded-lg border border-border">
-			{/* Header — collapsible */}
-			<button
-				className="flex w-full items-center justify-between p-4 text-left hover:bg-accent/50 transition-colors"
-				onClick={() => setExpanded(!expanded)}
-			>
-				<div className="flex items-center gap-3">
+			{/* Header — clickable left side collapses, right side has actions */}
+			<div className="flex w-full items-center justify-between hover:bg-accent/50 transition-colors">
+				<button
+					className="flex flex-1 items-center gap-3 p-4 text-left"
+					onClick={() => setExpanded(!expanded)}
+				>
 					{expanded ? (
-						<ChevronDown className="h-4 w-4" />
+						<ChevronDown className="h-4 w-4 shrink-0" />
 					) : (
-						<ChevronRight className="h-4 w-4" />
+						<ChevronRight className="h-4 w-4 shrink-0" />
 					)}
 					<span className="font-semibold">
 						Iteration {iteration.iterationNumber}
@@ -65,8 +68,8 @@ export function IterationDetail({
 							{iteration.status}
 						</Badge>
 					)}
-				</div>
-				<div className="flex items-center gap-3">
+				</button>
+				<div className="flex items-center gap-3 pr-4">
 					{delta !== null && (
 						<span
 							className={`text-xs font-mono ${delta > 0
@@ -95,15 +98,33 @@ export function IterationDetail({
 					>
 						{(iteration.averageScore * 100).toFixed(0)}%
 					</span>
+					{onDelete && (
+						<button
+							className="rounded p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+							title={isActive ? "Stop and delete iteration" : "Delete iteration"}
+							onClick={() => {
+								const msg = isActive
+									? "Stop the running iteration and delete it?"
+									: "Delete this iteration?"
+								if (confirm(msg)) onDelete()
+							}}
+						>
+							<Trash2 className="h-3.5 w-3.5" />
+						</button>
+					)}
 				</div>
-			</button>
+			</div>
 
 			{/* Detail content */}
 			{expanded && (
 				<div className="border-t border-border p-4 space-y-4">
 					{/* Prompt used */}
-					<div>
+					<div className="relative group/prompt">
 						<h4 className="text-sm font-medium mb-2">Prompt Used</h4>
+						<CopyButton
+							text={iteration.prompt}
+							className="absolute right-1 top-7 opacity-0 group-hover/prompt:opacity-100 transition-opacity"
+						/>
 						<pre className="whitespace-pre-wrap rounded-md bg-muted p-3 text-sm font-mono max-h-40 overflow-y-auto">
 							{iteration.prompt}
 						</pre>

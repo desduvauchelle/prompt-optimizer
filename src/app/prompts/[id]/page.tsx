@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { CopyButton } from "@/components/ui/copy-button"
 import {
 	Card,
 	CardContent,
@@ -185,6 +186,18 @@ export default function ProjectDetailPage({
 		router.push("/")
 	}
 
+	const handleDeleteIteration = async (iterationNumber: number) => {
+		await fetch(`/api/prompts/${id}/iterations/${iterationNumber}`, {
+			method: "DELETE",
+		})
+		fetchProject()
+	}
+
+	const handleDeleteVersion = async (version: number) => {
+		await fetch(`/api/prompts/${id}/versions/${version}`, { method: "DELETE" })
+		fetchProject()
+	}
+
 	if (loading) {
 		return (
 			<div className="flex items-center justify-center py-16">
@@ -352,8 +365,12 @@ export default function ProjectDetailPage({
 				)}
 
 				{/* System prompt */}
-				<div>
+				<div className="relative group">
 					<h4 className="text-sm font-medium mb-1">System Prompt</h4>
+					<CopyButton
+						text={project.systemPrompt}
+						className="absolute right-1 top-7 opacity-0 group-hover:opacity-100 transition-opacity"
+					/>
 					<pre className="whitespace-pre-wrap rounded-md bg-muted p-3 text-sm font-mono max-h-32 overflow-y-auto">
 						{project.systemPrompt}
 					</pre>
@@ -420,7 +437,7 @@ export default function ProjectDetailPage({
 
 			{/* Prompt version history */}
 			{project.promptVersions && project.promptVersions.length > 0 && (
-				<PromptVersionHistory versions={project.promptVersions} />
+				<PromptVersionHistory versions={project.promptVersions} onDelete={handleDeleteVersion} />
 			)}
 
 			{/* Score chart */}
@@ -433,6 +450,7 @@ export default function ProjectDetailPage({
 					iterations={project.iterations}
 					evalQuestions={project.evalQuestions}
 					onConfirm={handleConfirm}
+					onDelete={handleDeleteIteration}
 				/>
 			</div>
 		</div>

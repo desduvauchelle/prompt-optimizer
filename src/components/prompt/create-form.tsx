@@ -40,7 +40,7 @@ export function CreateForm() {
 	const [evalModel, setEvalModel] = useState("")
 	const [rewriteModel, setRewriteModel] = useState("")
 	const [autoConfirm, setAutoConfirm] = useState(false)
-	const [successThreshold, setSuccessThreshold] = useState(0)
+	const [successThreshold, setSuccessThreshold] = useState(90)
 
 	const canSaveDraft = systemPrompt.trim().length > 0
 	const canLaunch =

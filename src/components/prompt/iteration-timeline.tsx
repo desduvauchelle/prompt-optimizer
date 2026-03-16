@@ -7,12 +7,14 @@ interface IterationTimelineProps {
 	iterations: IterationResult[]
 	evalQuestions: EvalQuestion[]
 	onConfirm: (editedPrompt?: string) => void
+	onDelete?: (iterationNumber: number) => void
 }
 
 export function IterationTimeline({
 	iterations,
 	evalQuestions,
 	onConfirm,
+	onDelete,
 }: IterationTimelineProps) {
 	if (iterations.length === 0) {
 		return (
@@ -38,6 +40,7 @@ export function IterationTimeline({
 						iteration.status === "awaiting_confirmation"
 					}
 					onConfirm={onConfirm}
+					onDelete={onDelete ? () => onDelete(iteration.iterationNumber) : undefined}
 				/>
 			))}
 		</div>

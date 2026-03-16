@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import Link from "next/link"
 import { Sparkles } from "lucide-react"
 import { Providers } from "@/components/providers"
+import { MainNav } from "@/components/main-nav"
 import "./globals.css"
 
 const geistSans = Geist({
@@ -40,6 +41,7 @@ export default function RootLayout({
 								<Sparkles className="h-5 w-5 text-primary" />
 								Prompt Optimizer
 							</Link>
+							<MainNav />
 						</div>
 					</header>
 					<main className="container mx-auto px-6 py-8">{children}</main>

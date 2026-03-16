@@ -60,7 +60,7 @@ export function EditForm({ projectId, project }: EditFormProps) {
 		project.config.autoConfirm ?? false
 	)
 	const [successThreshold, setSuccessThreshold] = useState(
-		project.config.successThreshold ?? 0
+		project.config.successThreshold ?? 90
 	)
 
 	const canSave = systemPrompt.trim().length > 0
@@ -71,8 +71,8 @@ export function EditForm({ projectId, project }: EditFormProps) {
 		evalModel &&
 		rewriteModel
 
-	const handleSubmit = async (andLaunch: boolean) => {
-		if (andLaunch && !canLaunch) return
+	const handleSubmit = async (action: "save" | "saveAndContinue") => {
+		if (action === "saveAndContinue" && !canLaunch) return
 		if (!canSave) return
 		setSubmitting(true)
 
@@ -103,11 +103,10 @@ export function EditForm({ projectId, project }: EditFormProps) {
 			const data = await res.json()
 			if (!res.ok) throw new Error(data.error ?? "Failed to save changes")
 
-			if (andLaunch) {
+			if (action === "saveAndContinue") {
 				await fetch(`/api/prompts/${projectId}/launch`, { method: "POST" })
+				router.push(`/prompts/${projectId}`)
 			}
-
-			router.push(`/prompts/${projectId}`)
 		} catch (err) {
 			console.error(err)
 			alert(err instanceof Error ? err.message : "Something went wrong")
@@ -337,7 +336,7 @@ export function EditForm({ projectId, project }: EditFormProps) {
 				</Button>
 				<Button
 					variant="outline"
-					onClick={() => handleSubmit(false)}
+					onClick={() => handleSubmit("save")}
 					disabled={!canSave || submitting}
 				>
 					{submitting ? (
@@ -345,11 +344,11 @@ export function EditForm({ projectId, project }: EditFormProps) {
 					) : (
 						<Save className="mr-2 h-4 w-4" />
 					)}
-					Save Changes
+					Save
 				</Button>
 				{canLaunchFromStatus && (
 					<Button
-						onClick={() => handleSubmit(true)}
+						onClick={() => handleSubmit("saveAndContinue")}
 						disabled={!canLaunch || submitting}
 					>
 						{submitting ? (
@@ -357,7 +356,7 @@ export function EditForm({ projectId, project }: EditFormProps) {
 						) : (
 							<Rocket className="mr-2 h-4 w-4" />
 						)}
-						Save &amp; Launch
+						Save and Continue
 					</Button>
 				)}
 			</div>

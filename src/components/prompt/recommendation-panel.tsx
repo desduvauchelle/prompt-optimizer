@@ -11,6 +11,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card"
 import { Check, Pencil } from "lucide-react"
+import { CopyButton } from "@/components/ui/copy-button"
 
 interface RecommendationPanelProps {
 	analysis: string
@@ -79,18 +80,30 @@ export function RecommendationPanel({
 							)}
 						</div>
 					</CardHeader>
-					<CardContent className="space-y-3">
+					<CardContent className="space-y-3 relative group/prompt">
 						{isEditing || isAwaitingConfirmation ? (
-							<Textarea
-								value={editablePrompt}
-								onChange={(e) => setEditablePrompt(e.target.value)}
-								rows={8}
-								className="font-mono text-sm"
-							/>
+							<>
+								<CopyButton
+									text={editablePrompt}
+									className="absolute right-4 top-1 opacity-0 group-hover/prompt:opacity-100 transition-opacity z-10"
+								/>
+								<Textarea
+									value={editablePrompt}
+									onChange={(e) => setEditablePrompt(e.target.value)}
+									rows={8}
+									className="font-mono text-sm"
+								/>
+							</>
 						) : (
-							<pre className="whitespace-pre-wrap rounded-md bg-muted p-3 text-sm font-mono">
-								{rewrittenPrompt}
-							</pre>
+							<>
+								<CopyButton
+									text={rewrittenPrompt ?? ""}
+									className="absolute right-4 top-1 opacity-0 group-hover/prompt:opacity-100 transition-opacity z-10"
+								/>
+								<pre className="whitespace-pre-wrap rounded-md bg-muted p-3 text-sm font-mono">
+									{rewrittenPrompt}
+								</pre>
+							</>
 						)}
 
 						{isAwaitingConfirmation && (

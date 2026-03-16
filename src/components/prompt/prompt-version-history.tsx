@@ -1,15 +1,17 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, ChevronRight, GitCommit } from "lucide-react"
+import { ChevronDown, ChevronRight, GitCommit, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { CopyButton } from "@/components/ui/copy-button"
 import type { PromptVersion } from "@/lib/types"
 
 interface Props {
 	versions: PromptVersion[]
+	onDelete?: (version: number) => void
 }
 
-export function PromptVersionHistory({ versions }: Props) {
+export function PromptVersionHistory({ versions, onDelete }: Props) {
 	const [expandedVersion, setExpandedVersion] = useState<number | null>(null)
 
 	if (!versions || versions.length === 0) return null
@@ -44,37 +46,53 @@ export function PromptVersionHistory({ versions }: Props) {
 
 							{/* Content */}
 							<div className="flex-1 pb-4">
-								<button
-									type="button"
-									onClick={() =>
-										setExpandedVersion(isExpanded ? null : v.version)
-									}
-									className="flex items-center gap-2 text-left w-full group"
-								>
-									{isExpanded ? (
-										<ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-									) : (
-										<ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-									)}
-									<span className="font-medium text-sm">
-										v{v.version}
-									</span>
-									{isOriginal && (
-										<Badge variant="outline" className="text-xs">
-											Original
-										</Badge>
-									)}
-									{isLatest && !isOriginal && (
-										<Badge variant="default" className="text-xs">
-											Latest
-										</Badge>
-									)}
-									{v.score !== null && v.score !== undefined && (
-										<span className="text-xs text-muted-foreground ml-auto">
-											Score: {Math.round(v.score * 100)}%
+								<div className="flex items-center gap-1 w-full group">
+									<button
+										type="button"
+										onClick={() =>
+											setExpandedVersion(isExpanded ? null : v.version)
+										}
+										className="flex flex-1 items-center gap-2 text-left"
+									>
+										{isExpanded ? (
+											<ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+										) : (
+											<ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+										)}
+										<span className="font-medium text-sm">
+											v{v.version}
 										</span>
+										{isOriginal && (
+											<Badge variant="outline" className="text-xs">
+												Original
+											</Badge>
+										)}
+										{isLatest && !isOriginal && (
+											<Badge variant="default" className="text-xs">
+												Latest
+											</Badge>
+										)}
+										{v.score !== null && v.score !== undefined && (
+											<span className="text-xs text-muted-foreground ml-auto">
+												Score: {Math.round(v.score * 100)}%
+											</span>
+										)}
+									</button>
+									{onDelete && (
+										<button
+											type="button"
+											className="ml-2 rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 transition-all"
+											title="Delete this version"
+											onClick={() => {
+												if (confirm(`Delete version v${v.version}? This cannot be undone.`)) {
+													onDelete(v.version)
+												}
+											}}
+										>
+											<Trash2 className="h-3.5 w-3.5" />
+										</button>
 									)}
-								</button>
+								</div>
 
 								{/* Change summary */}
 								{v.changeSummary && !isExpanded && (
@@ -102,10 +120,14 @@ export function PromptVersionHistory({ versions }: Props) {
 												<p className="text-sm">{v.changeSummary}</p>
 											</div>
 										)}
-										<div>
+										<div className="relative group/prompt">
 											<p className="text-xs font-medium text-muted-foreground mb-1">
 												Prompt
 											</p>
+											<CopyButton
+												text={v.prompt}
+												className="absolute right-1 top-6 opacity-0 group-hover/prompt:opacity-100 transition-opacity"
+											/>
 											<pre className="whitespace-pre-wrap rounded-md bg-muted p-3 text-sm font-mono max-h-48 overflow-y-auto">
 												{v.prompt}
 											</pre>

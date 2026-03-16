@@ -70,7 +70,7 @@ const ProjectConfigSchema = new Schema(
 		evalModel: { type: String, default: "" },
 		rewriteModel: { type: String, default: "" },
 		autoConfirm: { type: Boolean, default: false },
-		successThreshold: { type: Number, default: 0 },
+		successThreshold: { type: Number, default: 90 },
 	},
 	{ _id: false }
 )

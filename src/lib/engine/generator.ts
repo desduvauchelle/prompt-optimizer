@@ -14,7 +14,8 @@ export async function generateOutputs(
 	model: string,
 	repetitions: number,
 	concurrency: number,
-	onProgress?: (completed: number, total: number) => void
+	onProgress?: (completed: number, total: number) => void,
+	signal?: AbortSignal
 ): Promise<GeneratedOutput[]> {
 	const results: GeneratedOutput[] = []
 
@@ -62,6 +63,8 @@ export async function generateOutputs(
 
 	// Process in chunks based on concurrency
 	for (let i = 0; i < tasks.length; i += concurrency) {
+		if (signal?.aborted) throw new DOMException("Aborted", "AbortError")
+
 		const batchSize = Math.min(concurrency, tasks.length - i)
 		const batch = tasks.slice(i, i + batchSize).map((task) => runTask(task))
 

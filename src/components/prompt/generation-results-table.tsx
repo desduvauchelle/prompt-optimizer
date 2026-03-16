@@ -10,6 +10,14 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import { CopyButton } from "@/components/ui/copy-button"
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip"
 import type { GenerationResult, EvalQuestion } from "@/lib/types"
 
 interface GenerationResultsTableProps {
@@ -24,80 +32,92 @@ export function GenerationResultsTable({
 	const [expandedRow, setExpandedRow] = useState<string | null>(null)
 
 	return (
-		<div className="rounded-md border">
-			<Table>
-				<TableHeader>
-					<TableRow>
-						<TableHead className="w-10">#</TableHead>
-						<TableHead>Output</TableHead>
-						{evalQuestions.map((q) => (
-							<TableHead
-								key={q.id}
-								className="text-center w-16"
-								title={q.question}
-							>
-								Q{evalQuestions.indexOf(q) + 1}
-							</TableHead>
-						))}
-						<TableHead className="text-right w-20">Score</TableHead>
-					</TableRow>
-				</TableHeader>
-				<TableBody>
-					{generations.map((gen, i) => {
-						const isExpanded = expandedRow === gen.id
-						return (
-							<Fragment key={gen.id}>
-								<TableRow
-									className="cursor-pointer hover:bg-accent/50"
-									onClick={() =>
-										setExpandedRow(isExpanded ? null : gen.id)
-									}
+		<TooltipProvider>
+			<div className="rounded-md border">
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead className="w-10">#</TableHead>
+							<TableHead>Output</TableHead>
+							{evalQuestions.map((q, idx) => (
+								<TableHead
+									key={q.id}
+									className="text-center w-16"
 								>
-									<TableCell className="font-mono text-xs">
-										{i + 1}
-									</TableCell>
-									<TableCell>
-										<div className="flex items-center gap-2">
-											{isExpanded ? (
-												<ChevronDown className="h-3 w-3 shrink-0" />
-											) : (
-												<ChevronRight className="h-3 w-3 shrink-0" />
-											)}
-											<span className="text-sm line-clamp-1 font-mono">
-												{gen.output.substring(0, 120)}
-											</span>
-										</div>
-									</TableCell>
-									{evalQuestions.map((q) => (
-										<TableCell key={q.id} className="text-center">
-											{gen.evalScores[q.id] ? (
-												<Check className="h-4 w-4 text-green-500 mx-auto" />
-											) : (
-												<X className="h-4 w-4 text-red-500 mx-auto" />
-											)}
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<span className="cursor-default">Q{idx + 1}</span>
+										</TooltipTrigger>
+										<TooltipContent side="top" className="max-w-xs text-center">
+											{q.question}
+										</TooltipContent>
+									</Tooltip>
+								</TableHead>
+							))}
+							<TableHead className="text-right w-20">Score</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{generations.map((gen, i) => {
+							const isExpanded = expandedRow === gen.id
+							return (
+								<Fragment key={gen.id}>
+									<TableRow
+										className="cursor-pointer hover:bg-accent/50"
+										onClick={() =>
+											setExpandedRow(isExpanded ? null : gen.id)
+										}
+									>
+										<TableCell className="font-mono text-xs">
+											{i + 1}
 										</TableCell>
-									))}
-									<TableCell className="text-right font-mono text-sm">
-										{(gen.overallScore * 100).toFixed(0)}%
-									</TableCell>
-								</TableRow>
-								{isExpanded && (
-									<TableRow>
-										<TableCell
-											colSpan={evalQuestions.length + 3}
-											className="bg-muted/50"
-										>
-											<pre className="whitespace-pre-wrap text-sm font-mono p-4 max-h-64 overflow-y-auto">
-												{gen.output}
-											</pre>
+										<TableCell>
+											<div className="flex items-center gap-2">
+												{isExpanded ? (
+													<ChevronDown className="h-3 w-3 shrink-0" />
+												) : (
+													<ChevronRight className="h-3 w-3 shrink-0" />
+												)}
+												<span className="text-sm line-clamp-1 font-mono">
+													{gen.output.substring(0, 120)}
+												</span>
+											</div>
+										</TableCell>
+										{evalQuestions.map((q) => (
+											<TableCell key={q.id} className="text-center">
+												{gen.evalScores[q.id] ? (
+													<Check className="h-4 w-4 text-green-500 mx-auto" />
+												) : (
+													<X className="h-4 w-4 text-red-500 mx-auto" />
+												)}
+											</TableCell>
+										))}
+										<TableCell className="text-right font-mono text-sm">
+											{(gen.overallScore * 100).toFixed(0)}%
 										</TableCell>
 									</TableRow>
-								)}
-							</Fragment>
-						)
-					})}
-				</TableBody>
-			</Table>
-		</div>
+									{isExpanded && (
+										<TableRow>
+											<TableCell
+												colSpan={evalQuestions.length + 3}
+												className="bg-muted/50 p-0 relative group/output"
+											>
+												<CopyButton
+													text={gen.output}
+													className="absolute right-4 top-4 opacity-0 group-hover/output:opacity-100 transition-opacity z-10"
+												/>
+												<pre className="whitespace-pre-wrap text-sm font-mono p-4 max-h-64 overflow-y-auto w-full">
+													{gen.output}
+												</pre>
+											</TableCell>
+										</TableRow>
+									)}
+								</Fragment>
+							)
+						})}
+					</TableBody>
+				</Table>
+			</div>
+		</TooltipProvider>
 	)
 }

@@ -40,7 +40,7 @@ const CreateProjectSchema = z.object({
 		evalModel: z.string().default(""),
 		rewriteModel: z.string().default(""),
 		autoConfirm: z.boolean().default(false),
-		successThreshold: z.number().min(0).max(100).default(0),
+		successThreshold: z.number().min(0).max(100).default(90),
 	}).default({
 		maxIterations: 3,
 		generationsPerIteration: 10,
@@ -49,7 +49,7 @@ const CreateProjectSchema = z.object({
 		evalModel: "",
 		rewriteModel: "",
 		autoConfirm: false,
-		successThreshold: 0,
+		successThreshold: 90,
 	}),
 	launch: z.boolean().default(false),
 })

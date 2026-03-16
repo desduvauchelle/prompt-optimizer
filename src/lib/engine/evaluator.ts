@@ -12,12 +12,15 @@ export async function evaluateOutputs(
 	outputs: GeneratedOutput[],
 	evalQuestions: EvalQuestion[],
 	model: string,
-	testCases?: TestCase[]
+	testCases?: TestCase[],
+	signal?: AbortSignal
 ): Promise<GenerationResult[]> {
 	const results: GenerationResult[] = []
 	const testCaseMap = new Map(testCases?.map((tc) => [tc.id, tc]) ?? [])
 
 	for (const item of outputs) {
+		if (signal?.aborted) throw new DOMException("Aborted", "AbortError")
+
 		if (item.output === "[GENERATION_FAILED]") {
 			results.push({
 				id: randomId(),

@@ -21,6 +21,10 @@ export interface ModelCallResult {
 	cost: number
 }
 
+function stripThinkingTags(text: string): string {
+	return text.replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, "").trim()
+}
+
 export async function callModel(
 	model: string,
 	input: string
@@ -28,12 +32,13 @@ export async function callModel(
 	const openrouter = getOpenRouterClient()
 	const result = openrouter.callModel({ model, input })
 	const response = await result.getResponse()
-	const text = response.output
+	const rawText = response.output
 		?.filter((o) => o.type === "message")
 		.flatMap((o) => "content" in o ? o.content : [])
 		.filter((c) => c.type === "output_text")
 		.map((c) => "text" in c ? c.text : "")
 		.join("") ?? await result.getText()
+	const text = stripThinkingTags(rawText)
 	const cost = response.usage?.cost ?? 0
 	return { text, cost }
 }
@@ -89,12 +94,13 @@ export async function callModelWithMessages(
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const result = openrouter.callModel({ model, input: messages as any })
 	const response = await result.getResponse()
-	const text = response.output
+	const rawText = response.output
 		?.filter((o) => o.type === "message")
 		.flatMap((o) => "content" in o ? o.content : [])
 		.filter((c) => c.type === "output_text")
 		.map((c) => "text" in c ? c.text : "")
 		.join("") ?? await result.getText()
+	const text = stripThinkingTags(rawText)
 	const cost = response.usage?.cost ?? 0
 	return { text, cost }
 }
